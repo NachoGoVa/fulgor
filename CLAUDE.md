@@ -12,10 +12,14 @@ nómina, facturas y vidas. El diseño completo y sus porqués están en `docs/re
 
 ## Cómo se juega (v2 «El operario»)
 
-**Lo que produces no es tuyo.** Cada día fichas y trabajas un turno de **2,5 minutos**: mantienes las
-bombillas encendidas para producir para la empresa. Al sonar la sirena cobras la **nómina** según la
-**cuota** y los **objetivos del día**; de tu **banco** salen las facturas (comida diaria, alquiler cada
-5 días), la maquinaria y el economato.
+**Lo que produces no es tuyo.** Cada día fichas y trabajas un turno de **30 segundos** (ampliable con
+la mejora **Jornada**, que escala sueldo y cuota en proporción — trabajar más horas paga más y exige
+más): mantienes las bombillas encendidas para producir para la empresa. Al sonar la sirena cobras la
+**nómina** según la **cuota** y los **objetivos del día**, y si superas la cuota hay **propina** (10%
+del sueldo del día, ampliable con el **Bote**, directa al banco y sin pasar por deducciones — anclada
+al sueldo y no a la cuota para que no explote en rangos altos; la simulación la deja en ~12% del
+ingreso total). De tu **banco** salen las facturas (comida diaria, alquiler cada 5 días), la maquinaria
+y el economato.
 
 El turno es el corazón de v1, intacto: cada bombilla tiene carga que decae, y la banda en la que pulsas
 lo decide todo — por debajo del 62% reencendido limpio, 62–85% banda buena (×1.5), **≥85% SOBRECARGA**
@@ -41,8 +45,8 @@ prestigio: cada vida se empieza mejor (Enchufe = rango inicial, Colchón = ahorr
 
 ```bash
 npm run dev      # servidor estático en http://localhost:5180
-npm test         # 41 pruebas del motor (runner integrado de Node)
-npm run smoke    # prueba de humo en Chrome headless (17 comprobaciones)
+npm test         # 48 pruebas del motor (runner integrado de Node)
+npm run smoke    # humo en Chrome headless (21 comprobaciones, ciclo de 2 días incluido)
 ./deploy.sh      # publica en https://fulgor.ngv.digital
 ```
 
@@ -63,7 +67,7 @@ src/engine/    ← simulación pura, sin DOM. Es lo que prueban los tests.
   config.js      TODO el balance: niveles, rangos, mejoras, habilidades, XP, logros
   engine.js      step() · click() · startDay()/endDay() · resetLife() · compras
   format.js      formateo de números grandes (K/M/B/T…)
-  save.js        localStorage, un solo blob con debounce de 5 s (clave v3)
+  save.js        localStorage, un solo blob con debounce de 3 s (clave v4)
 src/ui/        ← todo lo que toca el DOM
   art.js         SVG a mano: 10 bombillas, rotura, zócalo vacío, iconos, logo
   flavor.js      EL HUMOR: Don Fulgencio, el Sr. Braulio, facturas con nombre
@@ -71,8 +75,12 @@ src/ui/        ← todo lo que toca el DOM
   shop.js        panel: Mejoras · Bombillas · Economato · Carrera · Logros
   hud.js         banco, cuota, reloj del turno, XP
   fx.js          números flotantes, chispas, cristales, avisos
-src/main.js    ← bucle rAF + flujo del día (fichar → turno → parte → vida siguiente)
-test/          ← engine.test.js (41 unitarias) · smoke.mjs (navegador real)
+src/main.js    ← bucle rAF + flujo del día (fichar → turno → parte → vida siguiente).
+                 El flujo se deriva del ESTADO (shift.closed), no de eventos: un
+                 vigilante por segundo repara cualquier pantalla huérfana, y el
+                 bucle lleva try/catch — un frame roto jamás congela el juego
+                 (pasó: se quedaba clavado con el reloj a 0:01)
+test/          ← engine.test.js (48 unitarias) · smoke.mjs (navegador real)
 docs/          ← rediseno-operario.md (el diseño de v2 y sus decisiones)
 ```
 
@@ -108,7 +116,7 @@ anillos = `stroke-dasharray`. **El humor es parte del estilo**: todo texto de si
 `sw.js`: stale-while-revalidate — abre al instante, funciona sin conexión, nunca se queda en una
 versión vieja. `manifest.webmanifest` + `icon.svg` lo hacen instalable en el móvil.
 
-> ⚠️ **Al desplegar cambios hay que subir `VERSION` en `sw.js`** (ahora `fulgor-v3`). Por eso
+> ⚠️ **Al desplegar cambios hay que subir `VERSION` en `sw.js`** (ahora `fulgor-v4`). Por eso
 > `index.html`, `sw.js` y el manifest se suben con `max-age=0, must-revalidate` y el resto con caché
 > de un día: si esos tres se cachean, nadie ve nunca una versión nueva.
 

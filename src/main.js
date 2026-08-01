@@ -62,19 +62,19 @@ function ficharScreen() {
     <h2>${icon('clock')} Día ${S.day + 1} · ${R.name}</h2>
     <p class="quote">${flavor.pick(flavor.JEFE_MANANA)}</p>
     <div class="briefing">
-      <div><span>Cuota de hoy</span><b>${money(S.quota)}</b></div>
-      <div><span>Sueldo base</span><b>${money(R.salary)}</b></div>
+      <div><span>Cuota de hoy</span><b>${money(S.quota * st.jornadaMult)}</b></div>
+      <div><span>Sueldo del día</span><b>${money(R.salary * st.jornadaMult)}</b></div>
       <div><span>Turno</span><b>${st.shiftLen} s</b></div>
       <div><span>Facturas de hoy</span><b>${money(R.salary * CORE.foodRate * st.billMult + (rentToday ? R.salary * CORE.rentRate * st.billMult : 0))}${rentToday ? ' 🏠' : ''}</b></div>
     </div>
     ${S.debt > 0 ? `<p class="warn debt-hint">⚠ ${flavor.CALABOZO_AVISO} Debes ${money(S.debt)}.</p>` : ''}
-    <p class="warn">Los objetivos del día se reparten al fichar. Las roturas que no
-    repongas antes de salir, van a la nómina.</p>`,
+    <p class="warn">Si superas la cuota hay <b>propina</b> directa al banco. Las roturas
+    que no repongas antes de salir, van a la nómina.</p>`,
     [{ label: flavor.pick(flavor.FICHAR_BTN), cb: beginDay }]);
 }
 
 function beginDay() {
-  startDay(S);
+  if (!startDay(S)) return;   // turno en marcha o día sin cerrar: el vigilante decide
   drainEvents();
   scene.build(S);
   buildObjbar();
@@ -86,7 +86,7 @@ function buildObjbar() {
   if (!sh || !sh.active) { objbar.innerHTML = ''; return; }
   objbar.innerHTML = `
     <span class="obj-label">Hoy:</span>
-    <span class="obj" data-o="quota">${icon('bolt')}<i>cuota ${fmt(S.quota)} €</i><b></b></span>
+    <span class="obj" data-o="quota">${icon('bolt')}<i>cuota ${fmt(sh.quota)} €</i><b></b></span>
     ${sh.objectives.map((o, i) =>
       `<span class="obj" data-o="${i}" title="${flavor.OBJETIVO_DESC[o.type](o.target)}">
         ${icon(o.type === 'roturas' ? 'shield' : o.type === 'surges' ? 'surge' : o.type === 'sweet' ? 'tap' : 'bulb')}
@@ -105,7 +105,7 @@ function tickObjbar() {
     const key = el.dataset.o;
     let txt, ok;
     if (key === 'quota') {
-      const r = Math.min(1, sh.produced / S.quota);
+      const r = Math.min(1, sh.produced / sh.quota);
       txt = pct(r, 0); ok = r >= 1;
     } else {
       const o = sh.objectives[+key];
@@ -122,6 +122,7 @@ function tickObjbar() {
 
 function endDayFlow() {
   const r = endDay(S);
+  if (!r) return;
   drainEvents();
   objbar.innerHTML = '';
   objRefs = null;
@@ -135,7 +136,13 @@ function summaryScreen(r) {
               : flavor.pick(flavor.PAGA_MAL);
   const objLines = r.objectives.map((o) =>
     `<div class="pl ${o.met ? 'ok' : 'ko'}"><span>${o.met ? '✓' : '✗'} ${flavor.OBJETIVO_CORTO[o.type](o.target)}</span>
-     <b>${o.met ? '+' + money(CORE.primaRate * RANKS[r.rank].salary) : '—'}</b></div>`).join('');
+     <b>${o.met ? '+' + money(CORE.primaRate * r.salary) : '—'}</b></div>`).join('');
+  // Las roturas SIEMPRE tienen su línea si las hubo: que quede claro qué pasó
+  // con cada bombilla — descontada, o repuesta por ti sin castigo.
+  const breakLine = r.breaks === 0 ? ''
+    : r.deduct > 0
+      ? `<div class="pl ko"><span>Roturas (${r.breaks}) — «${flavor.pick(flavor.ROTURA)}»</span><b>−${money(r.deduct)}</b></div>`
+      : `<div class="pl"><span>Roturas (${r.breaks}) — repuestas en el turno</span><b>sin descuento</b></div>`;
   sheet(`
     <h2>${icon('coin')} Parte del día ${r.day}</h2>
     <p class="quote">${quote}</p>
@@ -144,8 +151,9 @@ function summaryScreen(r) {
       <div class="pl"><span>Sueldo base</span><b>${money(r.base)}</b></div>
       ${objLines}
       ${r.excess > 0 ? `<div class="pl ok"><span>Prima de productividad</span><b>+${money(r.excess)}</b></div>` : ''}
-      ${r.deduct > 0 ? `<div class="pl ko"><span>Roturas (${r.breaks}) — «${flavor.pick(flavor.ROTURA)}»</span><b>−${money(r.deduct)}</b></div>` : ''}
+      ${breakLine}
       <div class="pl total"><span>Nómina</span><b>${money(r.nomina)}</b></div>
+      ${r.tip > 0 ? `<div class="pl ok"><span>Propina por superar la cuota 🎉</span><b>+${money(r.tip)} directa al banco</b></div>` : ''}
       <div class="pl bill"><span>${flavor.pick(flavor.COMIDA)}</span><b>−${money(r.food)}</b></div>
       ${r.rent > 0 ? `<div class="pl bill"><span>${flavor.pick(flavor.ALQUILER)}</span><b>−${money(r.rent)}</b></div>` : ''}
       ${r.interest > 0 ? `<div class="pl ko"><span>Interés de la deuda</span><b>+${money(r.interest)} a deber</b></div>` : ''}
@@ -232,7 +240,8 @@ function drainEvents() {
       }
       case 'break':
         if (at) { fx.shatter(at.x, at.y); fx.float(at.x, at.y, '¡REVENTÓ!', 'bad'); }
-        fx.toast(`${TIERS[e.tier].name} rota. ${flavor.pick(flavor.ROTURA)}`, 'bad', 'bulb');
+        // Que quede claro el trato: o la repones tú antes de fichar, o va a la nómina.
+        fx.toast(`${TIERS[e.tier].name} rota (−${fmt(TIERS[e.tier].cost)} € de la nómina si no la repones). ${flavor.pick(flavor.ROTURA)}`, 'bad', 'bulb');
         fx.shake(app, true);
         scene.build(S);
         break;
@@ -311,8 +320,19 @@ function askWipe() {
 
 // ----------------------------------------------------------- bucle
 let prev = performance.now();
-let acc = 0;
+let acc = 0, guardAcc = 0;
 const UI_EVERY = 1 / 12;
+
+/**
+ * El vigilante. El flujo del día se deriva del ESTADO, no de eventos efímeros:
+ * si hay un día terminado sin pagar, se paga; si estamos entre días y no hay
+ * ninguna pantalla abierta, se abre la de fichar. Así una excepción perdida o
+ * una recarga a mitad de cierre nunca dejan el juego atascado.
+ */
+function ensureFlow() {
+  if (S.shift && !S.shift.active && !S.shift.closed) { endDayFlow(); return; }
+  if ((!S.shift || S.shift.closed) && !sheetEl) ficharScreen();
+}
 
 function loop(now) {
   let dt = (now - prev) / 1000;
@@ -320,28 +340,36 @@ function loop(now) {
   // Pestaña oculta a mitad de turno: el reloj laboral no corre sin ti.
   if (dt > 1) dt = 1;
 
-  step(S, dt);
-  drainEvents();
+  // El bucle NO puede morir: una excepción en un frame se apunta y se sigue.
+  // (Ya pasó: un frame roto congelaba el juego con el reloj a 0:01.)
+  try {
+    step(S, dt);
+    drainEvents();
 
-  const st = stats(S);
-  scene.frame(S, st);
-  hud.frame(S);
-  tickObjbar();
+    const st = stats(S);
+    scene.frame(S, st);
+    hud.frame(S, st);
+    tickObjbar();
 
-  acc += dt;
-  if (acc >= UI_EVERY) { acc = 0; shop.refresh(S); }
+    acc += dt;
+    if (acc >= UI_EVERY) { acc = 0; shop.refresh(S); }
 
-  save(S);
+    guardAcc += dt;
+    if (guardAcc >= 1) { guardAcc = 0; ensureFlow(); }
+
+    save(S);
+  } catch (err) {
+    console.error('FULGOR: frame roto (el juego sigue):', err);
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-// Al arrancar: si había un turno a medias se retoma tal cual; si no, a fichar.
-if (!(S.shift && S.shift.active)) {
-  setTimeout(ficharScreen, 400);
-} else {
-  buildObjbar();
-}
+// Al arrancar: turno a medias se retoma; día terminado sin pagar se paga
+// (esto repara partidas que se quedaron colgadas justo al acabar el turno);
+// y si no, a fichar.
+if (S.shift && S.shift.active) buildObjbar();
+else setTimeout(ensureFlow, 350);
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { flush(); return; }

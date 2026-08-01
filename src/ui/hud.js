@@ -58,17 +58,19 @@ const mmss = (sec) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 };
 
-export function frame(s) {
+export function frame(s, st = stats(s)) {
   set(refs.bank, 'b', money(s.bank));
   set(refs.debt, 'd', s.debt > 0 ? `debes ${money(s.debt)}` : '');
   refs.money.classList.toggle('indebt', s.debt > 0);
 
   const sh = s.shift;
   const running = sh && sh.active;
-  set(refs.quota, 'q', running || sh
-    ? `${fmt(sh.produced)} / ${fmt(s.quota)}`
-    : `— / ${fmt(s.quota)}`);
-  const ratio = sh ? Math.min(1, sh.produced / s.quota) : 0;
+  // La cuota del día vive congelada en el turno; entre días se estima la de mañana.
+  const quota = sh && sh.quota != null ? sh.quota : s.quota * st.jornadaMult;
+  set(refs.quota, 'q', sh
+    ? `${fmt(sh.produced)} / ${fmt(quota)}`
+    : `— / ${fmt(quota)}`);
+  const ratio = sh ? Math.min(1, sh.produced / quota) : 0;
   set(refs.qpct, 'qp', sh ? (ratio >= 1 ? '¡cumplida!' : pct(ratio, 0)) : '');
   refs.qpct.classList.toggle('over', ratio >= 1);
 

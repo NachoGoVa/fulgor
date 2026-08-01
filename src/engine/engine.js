@@ -102,7 +102,11 @@ export function stats(s) {
     surgeTime: CORE.surgeTime + u.reactor * 0.35,
     maxWear: 1 + u.cristal * 0.06,
     surgeCap: CORE.surgeCap + k.ojoclinico,
-    shiftLen: CORE.shift + u.despertador * 6 + k.madrugador * 12,
+    shiftLen: CORE.shift + u.jornada * 6 + k.madrugador * 12,
+    // La jornada escala TODO el día: sueldo, cuota y propina van en proporción
+    // al turno. Trabajar más horas paga más… y exige más.
+    jornadaMult: (CORE.shift + u.jornada * 6 + k.madrugador * 12) / CORE.shift,
+    tipRate: CORE.tipBase + u.bote * CORE.tipPer,
     nomMult: 1 + k.callo * 0.10,
     billMult: Math.max(0.4, 1 - k.labia * 0.08),
     xpMult: 1 + k.esponja * 0.15,
@@ -132,7 +136,9 @@ const decayOf = (sk, st) => TIERS[sk.tier].decay * st.decay * Math.pow(CORE.forz
 // ------------------------------------------------------------ el día
 /** Ficha la entrada: genera los objetivos y arranca el reloj del turno. */
 export function startDay(s) {
-  if (s.shift && s.shift.active) return null;
+  // No se ficha con un turno en marcha NI con un día terminado sin pagar:
+  // ese día pendiente tiene que pasar por endDay() primero (nada se salta la nómina).
+  if (s.shift && (s.shift.active || !s.shift.closed)) return null;
   s.day++;
   const st = stats(s);
   // dos objetivos secundarios distintos, al azar
@@ -143,8 +149,12 @@ export function startDay(s) {
     const def = pool.splice(i, 1)[0];
     objectives.push({ type: def.type, ...def.gen(s.rank), met: false });
   }
+  // Sueldo y cuota del día se congelan al fichar: comprar Jornada a media
+  // mañana no mueve la portería de hoy, cuenta desde mañana.
   s.shift = {
     active: true, left: st.shiftLen, len: st.shiftLen,
+    quota: s.quota * st.jornadaMult,
+    salary: RANKS[s.rank].salary * st.jornadaMult,
     produced: 0, clicks: 0, sweets: 0, surges: 0, breaks: 0,
     objectives,
   };
@@ -176,25 +186,35 @@ export function objectiveProgress(s, o) {
 export function endDay(s) {
   const sh = s.shift;
   if (!sh) return null;
+  if (sh.closed) return sh.report;   // idempotente: fichar la salida dos veces no paga dos veces
   sh.active = false;
   const st = stats(s);
   const R = RANKS[s.rank];
+  // partidas guardadas antes de que existiera la jornada escalada
+  const salary = sh.salary ?? R.salary;
+  const quota = sh.quota ?? s.quota;
 
   // --- nómina ---
-  const ratio = Math.min(1, sh.produced / s.quota);
-  const base = R.salary * ratio;
+  const ratio = Math.min(1, sh.produced / quota);
+  const base = salary * ratio;
   for (const o of sh.objectives) o.met = objectiveProgress(s, o).ok;
   const met = sh.objectives.filter((o) => o.met);
-  const primas = met.length * CORE.primaRate * R.salary;
-  const excess = Math.min(CORE.excessRate * Math.max(0, sh.produced - s.quota),
-                          CORE.excessCap * R.salary);
+  const primas = met.length * CORE.primaRate * salary;
+  const excess = Math.min(CORE.excessRate * Math.max(0, sh.produced - quota),
+                          CORE.excessCap * salary);
   const bruto = base + primas + excess;
   const pendingSum = s.sockets.reduce((t, k) => t + k.pending, 0);
   const deduct = Math.min(pendingSum, CORE.deductCap * bruto);
   const nomina = (bruto - deduct) * st.nomMult;
   s.bank += nomina;
 
-  // --- facturas ---
+  // --- propina: superar la cuota deja algo directo en el bolsillo, sin pasar
+  // por deducciones. Es un % del sueldo del día (así no explota en rangos altos).
+  const quotaMet0 = ratio >= 1;
+  const tip = quotaMet0 ? st.tipRate * salary : 0;
+  s.bank += tip;
+
+  // --- facturas (sobre el sueldo BASE del rango: vivir no se encarece por currar más) ---
   const food = R.salary * CORE.foodRate * st.billMult;
   const rentDue = s.day % CORE.rentEvery === 0;
   const rent = rentDue ? R.salary * CORE.rentRate * st.billMult : 0;
@@ -213,7 +233,7 @@ export function endDay(s) {
   s.debt -= repaid;
 
   // --- cuota del día siguiente y carrera ---
-  const quotaMet = ratio >= 1;
+  const quotaMet = quotaMet0;
   if (quotaMet) {
     s.metDays++;
     s.stats.quotasMet++;
@@ -265,13 +285,15 @@ export function endDay(s) {
   checkAchievements(s);
 
   const report = {
-    day: s.day, rank: s.rank, produced: sh.produced, quota: s.quota, ratio,
-    base, primas, objectives: sh.objectives, excess, deduct, breaks: sh.breaks,
+    day: s.day, rank: s.rank, produced: sh.produced, quota, salary, ratio,
+    base, primas, objectives: sh.objectives, excess, tip, deduct, breaks: sh.breaks,
     nomina, food, rent, shortfall, interest, repaid,
     bank: s.bank, debt: s.debt, xp, quotaMet, promotion, fail,
     fireStreak: s.fireStreak, metDays: s.metDays,
   };
-  s.shift = { ...sh, report };   // se conserva hasta el próximo startDay
+  // `closed` es la marca de que este día YA está pagado: el flujo de la UI se
+  // deriva de aquí (no de eventos efímeros), así que sobrevive a recargas.
+  s.shift = { ...sh, closed: true, report };
   emit(s, 'dayEnd', { report });
   return report;
 }

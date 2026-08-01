@@ -168,6 +168,29 @@ try {
   check(!mob.over, 'en móvil no hay desbordamiento horizontal');
   check(mob.panel > 100 && mob.scene > 100, `en móvil escena y panel conviven (${mob.scene}px / ${mob.panel}px)`);
 
+  // --- EL CICLO COMPLETO: fin del turno → parte del día → día 2 ---
+  // (regresión del bug real: el juego se quedaba colgado con el reloj a 0:01
+  // y el día 2 nunca llegaba)
+  await send('Emulation.setDeviceMetricsOverride',
+    { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  let parte = false;
+  for (let i = 0; i < 20 && !parte; i++) {
+    await sleep(2500);
+    parte = await ev(`!!document.querySelector('.modal .payroll')`);
+  }
+  check(parte, 'al sonar la sirena aparece el parte del día');
+  const nomina = await ev(`document.querySelector('.pl.total b')?.textContent`);
+  check(!!nomina, `la nómina se liquida (${nomina})`);
+  await ev(`document.querySelector('.modal [data-btn]').click()`);
+  await sleep(600);
+  const dia2 = await ev(`document.querySelector('.modal .sheet h2')?.textContent?.trim()`);
+  check(/Día 2/.test(dia2 || ''), `y el día 2 espera en la puerta (${dia2})`);
+  await ev(`document.querySelector('.modal [data-btn]').click()`);
+  await sleep(1500);
+  const d2 = await ev(`({ clock: document.querySelector('[data-k=clock]').textContent,
+    day: document.querySelector('[data-k=dayinfo]').textContent })`);
+  check(/Día 2/.test(d2.day) && d2.clock !== '—', `el día 2 arranca y el reloj corre (${d2.day} · ${d2.clock})`);
+
   check(errors.length === 0, `sin errores de consola${errors.length ? ': ' + errors[0].slice(0, 120) : ''}`);
 } catch (e) {
   fail.push('la prueba reventó: ' + e.message);

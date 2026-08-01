@@ -3,10 +3,10 @@
 
 import { newState } from './engine.js';
 
-// v3: rediseño «El operario» (nómina, banco, vidas, XP). Subir la versión
-// descarta las partidas viejas en vez de intentar migrarlas.
-const KEY = 'fulgor.save.v3';
-const EVERY = 5000;
+// v4: jornada de 30 s con escalado de sueldo/cuota, propina y cierre de día
+// idempotente. Subir la versión descarta las partidas viejas en vez de migrarlas.
+const KEY = 'fulgor.save.v4';
+const EVERY = 3000;   // en móvil, pagehide no siempre llega: mejor perder poco
 
 let pending = null;
 let timer = null;

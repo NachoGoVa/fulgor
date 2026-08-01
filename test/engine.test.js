@@ -418,13 +418,87 @@ test('los precios del economato suben con tu categoría', () => {
   assert.ok(consumableCost(s, 'fusible') > cheap * 20, 'el economato es un ladino');
 });
 
-test('mejoras: coste escalado, tope del Despertador y descuento real', () => {
+test('mejoras: coste escalado, tope de la Jornada y descuento real', () => {
   const s = fresh();
   s.bank = 1e9;
   assert.ok(buyUpgrade(s, 'voltaje'));
   assert.ok(s.bank < 1e9);
-  for (let i = 0; i < 20; i++) buyUpgrade(s, 'despertador');
-  assert.equal(s.upgrades.despertador, 10, 'el Despertador tiene tope');
+  for (let i = 0; i < 30; i++) buyUpgrade(s, 'jornada');
+  assert.equal(s.upgrades.jornada, 20, 'la Jornada tiene tope');
+});
+
+// ---------------------------------------------------- jornada y propina
+test('la Jornada alarga el turno y escala sueldo y cuota en proporción', () => {
+  const s = fresh();
+  s.bank = 1e9;
+  buyUpgrade(s, 'jornada');            // +6 s sobre 30 → x1.2
+  const st = stats(s);
+  assert.equal(st.shiftLen, CORE.shift + 6);
+  assert.ok(Math.abs(st.jornadaMult - (CORE.shift + 6) / CORE.shift) < 1e-9);
+  startDay(s);
+  assert.ok(Math.abs(s.shift.salary - RANKS[0].salary * st.jornadaMult) < 1e-9, 'sueldo del día escalado');
+  assert.ok(Math.abs(s.shift.quota - s.quota * st.jornadaMult) < 1e-9, 'cuota del día escalada');
+});
+
+test('el sueldo y la cuota del día se congelan al fichar', () => {
+  const s = fresh();
+  s.bank = 1e9;
+  day(s);
+  const antes = s.shift.salary;
+  buyUpgrade(s, 'jornada');            // comprada a media mañana
+  assert.equal(s.shift.salary, antes, 'hoy no cambia nada: cuenta desde mañana');
+});
+
+test('superar la cuota deja propina directa en el banco', () => {
+  const s = day(fresh());
+  s.shift.produced = s.shift.quota;    // justo la cuota
+  const r = endDay(s);
+  assert.ok(Math.abs(r.tip - CORE.tipBase * RANKS[0].salary) < 1e-9, '10% del sueldo del día');
+  // la propina no pasa por deducciones ni por el Callo: es bruta y tuya
+  assert.ok(Math.abs(s.bank - (r.nomina + r.tip - r.food)) < 1e-9);
+});
+
+test('sin cumplir la cuota no hay propina', () => {
+  const s = day(fresh());
+  s.shift.produced = s.shift.quota * 0.9;
+  assert.equal(endDay(s).tip, 0);
+});
+
+test('el Bote de propinas sube el porcentaje', () => {
+  const s = fresh();
+  s.bank = 1e9;
+  buyUpgrade(s, 'bote');
+  buyUpgrade(s, 'bote');
+  assert.ok(Math.abs(stats(s).tipRate - (CORE.tipBase + 2 * CORE.tipPer)) < 1e-9);
+  day(s);
+  s.shift.produced = s.shift.quota;
+  const r = endDay(s);
+  assert.ok(Math.abs(r.tip - (CORE.tipBase + 2 * CORE.tipPer) * s.shift.salary) < 1e-6);
+});
+
+// ------------------------------------------------- el cierre no se pierde
+test('fichar la salida dos veces no paga dos veces', () => {
+  const s = day(fresh());
+  s.shift.produced = s.shift.quota;
+  const r1 = endDay(s);
+  const bank = s.bank;
+  const r2 = endDay(s);
+  assert.equal(r2, r1, 'la segunda vez devuelve el mismo parte');
+  assert.equal(s.bank, bank, 'y no vuelve a ingresar nada');
+});
+
+test('no se puede fichar la entrada con un día terminado sin pagar', () => {
+  // Es el bug que atascó al owner: el turno acabó, el cierre se perdió, y el
+  // juego quedó colgado. Ahora el estado lo impide y endDay() lo repara.
+  const s = day(fresh());
+  step(s, 9999);                        // la sirena suena, turno inactivo
+  assert.equal(s.shift.active, false);
+  assert.equal(s.shift.closed, undefined, 'terminado pero SIN pagar');
+  assert.equal(startDay(s), null, 'no se salta la nómina de ayer');
+  const r = endDay(s);                  // el vigilante haría exactamente esto
+  assert.ok(r, 'el día pendiente se paga');
+  assert.ok(startDay(s), 'y entonces sí, al día siguiente');
+  assert.equal(s.day, 2);
 });
 
 test('el forzado sube producción a costa de apagarse y desgastar más', () => {

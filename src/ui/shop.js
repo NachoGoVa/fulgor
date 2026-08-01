@@ -149,7 +149,8 @@ function effectText(id, s, st) {
     case 'disipador':  return `Enfría <b>x${st.cool.toFixed(2)}</b> más rápido`;
     case 'reactor':    return `Sobrecarga de <b>${st.surgeTime.toFixed(2)} s</b>`;
     case 'cristal':    return `Aguanta <b>x${st.maxWear.toFixed(2)}</b> de desgaste`;
-    case 'despertador':return `Turno de <b>${st.shiftLen} s</b>`;
+    case 'jornada':    return `Turno de <b>${st.shiftLen} s</b> · sueldo y cuota <b>x${st.jornadaMult.toFixed(2)}</b>`;
+    case 'bote':       return `Propina del <b>${pct(st.tipRate, 0)}</b> del sueldo al superar la cuota`;
     default: return '';
   }
 }

@@ -48,7 +48,9 @@ export const CORE = {
   maxSockets: 12,
 
   // el día laboral
-  shift: 150,        // s de turno base (2,5 min: corto y dinámico)
+  shift: 30,         // s de turno base — jornadas relámpago; la mejora Jornada lo alarga
+  tipBase: 0.10,     // propina al superar la cuota: 10% del sueldo del día, directa al banco
+  tipPer: 0.05,      // +5% por nivel del Bote de propinas
   primaRate: 0.20,   // cada objetivo cumplido paga 20% del sueldo
   excessRate: 0.10,  // el exceso sobre la cuota paga al 10%…
   excessCap: 1.0,    // …hasta un máximo de 1 sueldo (la empresa no es tonta)
@@ -72,18 +74,19 @@ export const forzadoCost = (tier, level) =>
   Math.max(40, TIERS[tier].base * 25) * Math.pow(2.2, level);
 
 // ---------------------------------------------------------------- la carrera
-// salary = sueldo base diario · quota = cuota base del rango
+// salary = sueldo base diario · quota = cuota base del rango (a jornada de 30 s;
+// la mejora Jornada escala sueldo y cuota en proporción al turno)
 // sockets/maxTier = lo que la empresa te deja tocar
 // promoteDays = días cumpliendo la cuota (no seguidos) para el ascenso
 export const RANKS = [
-  { id: 'aprendiz',   name: 'Aprendiz',       mote: 'el chaval de las bombillas', salary: 40,    quota: 130,    sockets: 1,  maxTier: 1, promoteDays: 3 },
-  { id: 'peon',       name: 'Peón',           mote: 'ya te dejan tocar dos',      salary: 95,    quota: 420,    sockets: 2,  maxTier: 2, promoteDays: 4 },
-  { id: 'oficial',    name: 'Oficial',        mote: 'con taquilla propia',        salary: 220,   quota: 1300,   sockets: 3,  maxTier: 3, promoteDays: 4 },
-  { id: 'tecnico',    name: 'Técnico',        mote: 'de filamentos y sus cosas',  salary: 500,   quota: 3800,   sockets: 4,  maxTier: 4, promoteDays: 5 },
-  { id: 'encargado',  name: 'Encargado',      mote: 'con llavero y todo',         salary: 1150,  quota: 12000,  sockets: 6,  maxTier: 5, promoteDays: 6 },
-  { id: 'jefeturno',  name: 'Jefe de Turno',  mote: 'Don Fulgencio te saluda',    salary: 2600,  quota: 42000,  sockets: 8,  maxTier: 7, promoteDays: 7 },
-  { id: 'jefeplanta', name: 'Jefe de Planta', mote: 'tu firma ya vale algo',      salary: 6000,  quota: 130000, sockets: 10, maxTier: 8, promoteDays: 8 },
-  { id: 'direccion',  name: 'Dirección',      mote: 'despacho con ventana',       salary: 14000, quota: 400000, sockets: 12, maxTier: 9, promoteDays: 9999 },
+  { id: 'aprendiz',   name: 'Aprendiz',       mote: 'el chaval de las bombillas', salary: 40,    quota: 26,    sockets: 1,  maxTier: 1, promoteDays: 3 },
+  { id: 'peon',       name: 'Peón',           mote: 'ya te dejan tocar dos',      salary: 95,    quota: 84,    sockets: 2,  maxTier: 2, promoteDays: 4 },
+  { id: 'oficial',    name: 'Oficial',        mote: 'con taquilla propia',        salary: 220,   quota: 260,   sockets: 3,  maxTier: 3, promoteDays: 4 },
+  { id: 'tecnico',    name: 'Técnico',        mote: 'de filamentos y sus cosas',  salary: 500,   quota: 760,   sockets: 4,  maxTier: 4, promoteDays: 5 },
+  { id: 'encargado',  name: 'Encargado',      mote: 'con llavero y todo',         salary: 1150,  quota: 2400,  sockets: 6,  maxTier: 5, promoteDays: 6 },
+  { id: 'jefeturno',  name: 'Jefe de Turno',  mote: 'Don Fulgencio te saluda',    salary: 2600,  quota: 8400,  sockets: 8,  maxTier: 7, promoteDays: 7 },
+  { id: 'jefeplanta', name: 'Jefe de Planta', mote: 'tu firma ya vale algo',      salary: 6000,  quota: 26000, sockets: 10, maxTier: 8, promoteDays: 8 },
+  { id: 'direccion',  name: 'Dirección',      mote: 'despacho con ventana',       salary: 14000, quota: 80000, sockets: 12, maxTier: 9, promoteDays: 9999 },
 ];
 
 // ---------------------------------------------------------------- mejoras €
@@ -95,7 +98,10 @@ export const UPGRADES = [
   { id: 'disipador',  name: 'Disipador',   desc: '+8% de velocidad de enfriado del desgaste.', base: 90,  growth: 1.22, icon: 'fan' },
   { id: 'reactor',    name: 'Reactor',     desc: '+0.35 s de duración de la sobrecarga.',      base: 300, growth: 1.30, icon: 'core' },
   { id: 'cristal',    name: 'Cristal',     desc: '+6% de resistencia antes de romperse.',      base: 200, growth: 1.26, icon: 'gem' },
-  { id: 'despertador',name: 'Despertador', desc: '+6 s de turno. Llegas antes que el jefe.',   base: 150, growth: 1.50, icon: 'clock', max: 10 },
+  // La Jornada es la palanca gorda: el turno crece y, con él, sueldo, cuota y propina
+  // (todo escala con turno/30). Pagas por trabajar más — muy de operario.
+  { id: 'jornada',    name: 'Jornada',     desc: '+6 s de turno, con subida de sueldo y cuota en proporción. Más horas, más nómina… y más propina.', base: 120, growth: 1.45, icon: 'clock', max: 20 },
+  { id: 'bote',       name: 'Bote de propinas', desc: '+5% de propina por nivel (la propina es un % del sueldo del día y va directa al banco).', base: 60, growth: 1.6, icon: 'coin', max: 8 },
 ];
 
 // ---------------------------------------------------------------- automatismos €
@@ -128,10 +134,10 @@ export const CONSUMABLES = [
     desc: 'Pone a cero el desgaste de todas las bombillas.' },
   { id: 'bateria',      name: 'Batería',       mult: 3,  icon: 'battery',instant: 'charge',
     desc: 'Carga todas las bombillas al 100% al instante.' },
-  { id: 'sobretension', name: 'Sobretensión',  mult: 15, icon: 'surge',  buff: { mult: 3, time: 30 },
-    desc: 'x3 a toda la producción durante 30 s de turno.' },
-  { id: 'estabilizador',name: 'Estabilizador', mult: 20, icon: 'lock',   buff: { noWear: true, time: 60 },
-    desc: 'Sin desgaste durante 60 s de turno. Sobrecarga sin miedo.' },
+  { id: 'sobretension', name: 'Sobretensión',  mult: 15, icon: 'surge',  buff: { mult: 3, time: 15 },
+    desc: 'x3 a toda la producción durante 15 s de turno.' },
+  { id: 'estabilizador',name: 'Estabilizador', mult: 20, icon: 'lock',   buff: { noWear: true, time: 20 },
+    desc: 'Sin desgaste durante 20 s de turno. Sobrecarga sin miedo.' },
 ];
 
 export const consumablePrice = (rank, id) =>
