@@ -1,8 +1,8 @@
-// Barra superior: dinero, producción, chispas y los buffs que estén corriendo.
+// Barra superior: banco, cuota del día, reloj del turno y experiencia.
 
-import { stats, income, potential } from '../engine/engine.js';
+import { stats } from '../engine/engine.js';
+import { RANKS, CONSUMABLES } from '../engine/config.js';
 import { fmt, money, pct } from '../engine/format.js';
-import { CONSUMABLES } from '../engine/config.js';
 import { icon, logoSvg } from './art.js';
 
 const CON = Object.fromEntries(CONSUMABLES.map((c) => [c.id, c]));
@@ -14,31 +14,36 @@ export function mount(node) {
     <div class="brand">${logoSvg()}<h1>FULGOR</h1></div>
     <div class="readouts">
       <div class="ro money">
-        <span class="ro-lbl" data-short="Dinero">Dinero</span>
-        <b class="ro-val" data-k="money">0 €</b>
+        <span class="ro-lbl" data-short="Banco">Banco</span>
+        <b class="ro-val" data-k="bank">0 €</b>
+        <small class="ro-sub" data-k="debt"></small>
       </div>
-      <div class="ro">
-        <span class="ro-lbl" data-short="€/s">Producción</span>
-        <b class="ro-val" data-k="rate">0 €/s</b>
-        <small class="ro-sub" data-k="pot"></small>
+      <div class="ro quota">
+        <span class="ro-lbl" data-short="Cuota">Cuota del día</span>
+        <b class="ro-val" data-k="quota">—</b>
+        <small class="ro-sub" data-k="qpct"></small>
+      </div>
+      <div class="ro clockro">
+        <span class="ro-lbl" data-short="Turno">Turno</span>
+        <b class="ro-val clock" data-k="clock">—</b>
+        <small class="ro-sub" data-k="dayinfo"></small>
       </div>
       <div class="ro spark">
-        <span class="ro-lbl" data-short="Chispas">Chispas</span>
-        <b class="ro-val" data-k="sparks">0</b>
-      </div>
-      <div class="ro mult">
-        <span class="ro-lbl" data-short="Multi">Multiplicador</span>
-        <b class="ro-val" data-k="mult">x1</b>
+        <span class="ro-lbl" data-short="XP">Experiencia</span>
+        <b class="ro-val" data-k="xp">0</b>
       </div>
     </div>
     <div class="buffs"></div>`;
   refs = {
-    money: el.querySelector('[data-k=money]'),
-    rate: el.querySelector('[data-k=rate]'),
-    pot: el.querySelector('[data-k=pot]'),
-    sparks: el.querySelector('[data-k=sparks]'),
-    mult: el.querySelector('[data-k=mult]'),
+    bank: el.querySelector('[data-k=bank]'),
+    debt: el.querySelector('[data-k=debt]'),
+    quota: el.querySelector('[data-k=quota]'),
+    qpct: el.querySelector('[data-k=qpct]'),
+    clock: el.querySelector('[data-k=clock]'),
+    dayinfo: el.querySelector('[data-k=dayinfo]'),
+    xp: el.querySelector('[data-k=xp]'),
     buffs: el.querySelector('.buffs'),
+    money: el.querySelector('.ro.money'),
   };
 }
 
@@ -48,22 +53,31 @@ const set = (node, key, val) => {
   node.textContent = val;
 };
 
-export function frame(s, st = stats(s)) {
-  set(refs.money, 'm', money(s.money));
-  const now = income(s, st), max = potential(s, st);
-  set(refs.rate, 'r', fmt(now) + ' €/s');
-  // Por encima del 100% significa que hay sobrecargas corriendo: se marca.
-  const ratio = max > 0 ? now / max : 0;
-  set(refs.pot, 'p', max > 0 ? `${pct(ratio, 0)} del ritmo base` : '');
-  refs.pot.classList.toggle('over', ratio > 1.01);
-  set(refs.sparks, 's', fmt(s.sparks) + ' ⚡');
-  set(refs.mult, 'x', 'x' + fmt(st.money, st.money < 100 ? 2 : 0));
-  // Al empezar no hay ningún multiplicador: enseñar "x1.00" hacía pensar que
-  // la partida arranca con bonificaciones puestas. Aparece cuando existe.
-  refs.mult.parentElement.classList.toggle('hide', st.money < 1.02);
-  refs.sparks.parentElement.classList.toggle('hide', !s.sparks && !s.stats.prestiges);
+const mmss = (sec) => {
+  sec = Math.max(0, Math.ceil(sec));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+};
 
-  // Los buffs activos, con su cuenta atrás.
+export function frame(s) {
+  set(refs.bank, 'b', money(s.bank));
+  set(refs.debt, 'd', s.debt > 0 ? `debes ${money(s.debt)}` : '');
+  refs.money.classList.toggle('indebt', s.debt > 0);
+
+  const sh = s.shift;
+  const running = sh && sh.active;
+  set(refs.quota, 'q', running || sh
+    ? `${fmt(sh.produced)} / ${fmt(s.quota)}`
+    : `— / ${fmt(s.quota)}`);
+  const ratio = sh ? Math.min(1, sh.produced / s.quota) : 0;
+  set(refs.qpct, 'qp', sh ? (ratio >= 1 ? '¡cumplida!' : pct(ratio, 0)) : '');
+  refs.qpct.classList.toggle('over', ratio >= 1);
+
+  set(refs.clock, 'c', running ? mmss(sh.left) : '—');
+  refs.clock.classList.toggle('urgent', running && sh.left <= 15);
+  set(refs.dayinfo, 'di', `Día ${s.day || '—'} · ${RANKS[s.rank].name}`);
+
+  set(refs.xp, 'x', fmt(s.xp) + ' XP');
+
   const key = s.buffs.map((b) => b.id + Math.ceil(b.time)).join(',');
   if (last.buffs !== key) {
     last.buffs = key;
@@ -75,9 +89,8 @@ export function frame(s, st = stats(s)) {
   }
 }
 
-/** Marca visualmente que acabas de cobrar algo gordo. */
 export function flashMoney() {
-  refs.money.classList.remove('pop');
-  void refs.money.offsetWidth;
-  refs.money.classList.add('pop');
+  refs.bank.classList.remove('pop');
+  void refs.bank.offsetWidth;
+  refs.bank.classList.add('pop');
 }

@@ -3,9 +3,9 @@
 
 import { newState } from './engine.js';
 
-// v2: el nivel pasó de la bombilla al zócalo y se rehizo el balance de salida.
-// Subir la versión descarta las partidas viejas en vez de intentar migrarlas.
-const KEY = 'fulgor.save.v2';
+// v3: rediseño «El operario» (nómina, banco, vidas, XP). Subir la versión
+// descarta las partidas viejas en vez de intentar migrarlas.
+const KEY = 'fulgor.save.v3';
 const EVERY = 5000;
 
 let pending = null;
@@ -23,38 +23,37 @@ export function flush() {
   const s = pending;
   pending = null;
   try {
-    const { events, ...rest } = s; // los eventos son efímeros, no se guardan
+    const { events, _achN, _achM, ...rest } = s; // lo efímero no se guarda
     localStorage.setItem(KEY, JSON.stringify({ ...rest, lastSeen: Date.now() }));
   } catch (e) {
     console.warn('No se pudo guardar la partida:', e);
   }
 }
 
-/** Devuelve { state, away } donde `away` son los segundos que has estado fuera. */
 export function load() {
   let raw;
   try { raw = localStorage.getItem(KEY); } catch { raw = null; }
-  if (!raw) return { state: newState(), away: 0 };
+  if (!raw) return { state: newState() };
   try {
     const data = JSON.parse(raw);
-    const away = data.lastSeen ? Math.max(0, (Date.now() - data.lastSeen) / 1000) : 0;
     // Rellenamos con un estado nuevo para que un save viejo no rompa al añadir campos.
     const base = newState();
     const state = {
       ...base, ...data,
-      prestige: { ...base.prestige, ...(data.prestige || {}) },
+      skills: { ...base.skills, ...(data.skills || {}) },
       upgrades: { ...base.upgrades, ...(data.upgrades || {}) },
       auto: { ...base.auto, ...(data.auto || {}) },
       bag: { ...base.bag, ...(data.bag || {}) },
       stats: { ...base.stats, ...(data.stats || {}) },
       buffs: data.buffs || [],
       achievements: data.achievements || [],
+      shift: data.shift || null,
       events: [],
     };
-    return { state, away };
+    return { state };
   } catch (e) {
     console.warn('Partida corrupta, empezando de cero:', e);
-    return { state: newState(), away: 0 };
+    return { state: newState() };
   }
 }
 

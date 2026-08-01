@@ -521,3 +521,75 @@ kbd {
 @media (prefers-reduced-motion:reduce) {
   *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+/* ============================================================ v2: el operario */
+
+/* --- reloj del turno --- */
+.clock { font-family:var(--mono); letter-spacing:.04em; }
+.clock.urgent { color:var(--danger); animation:danger .5s ease-in-out infinite; }
+.ro.quota .ro-val { color:var(--money); }
+.ro-sub.over { color:var(--sweet); }
+.ro.money.indebt { border-color:#5A2030; background:linear-gradient(180deg,#200A10,var(--surface)); }
+.ro.money.indebt .ro-sub { color:var(--danger); font-weight:700; }
+
+/* --- barra de objetivos del día (sustituye al tip durante el turno) --- */
+#objbar { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; min-height:34px; }
+.obj-label { font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--dim2); }
+.obj {
+  display:inline-flex; align-items:center; gap:5px; padding:4px 10px; font-size:11px;
+  border-radius:99px; background:var(--surface); border:1px solid var(--line); color:var(--dim);
+}
+.obj .ic { width:12px; height:12px; }
+.obj b { font-variant-numeric:tabular-nums; color:var(--text); }
+.obj.ok { border-color:var(--sweet); color:var(--sweet); background:rgba(74,222,155,.08); }
+.obj.ok b { color:var(--sweet); }
+
+/* --- pantallas del día (fichar / parte / calabozo) --- */
+.modal.locked { backdrop-filter:blur(9px); }
+.quote { font-style:italic; color:var(--gold); font-size:12.5px; line-height:1.5; margin-bottom:12px; }
+.briefing { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:10px; }
+.briefing div {
+  display:flex; flex-direction:column; padding:8px 10px; border-radius:var(--r-sm);
+  background:rgba(0,0,0,.25); border:1px solid var(--line);
+}
+.briefing span { font-size:9.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--dim2); }
+.briefing b { font-size:14px; font-variant-numeric:tabular-nums; }
+
+.payroll { display:flex; flex-direction:column; gap:2px; margin:10px 0; }
+.pl {
+  display:flex; justify-content:space-between; gap:12px; padding:5px 9px; font-size:12px;
+  border-radius:6px; color:var(--dim);
+}
+.pl b { font-variant-numeric:tabular-nums; color:var(--text); white-space:nowrap; }
+.pl.ok { color:var(--sweet); } .pl.ok b { color:var(--sweet); }
+.pl.ko { color:#E58BA0; } .pl.ko b { color:var(--danger); }
+.pl.bill b { color:var(--dim); }
+.pl.total { background:var(--surface2); border:1px solid var(--line2); }
+.pl.total b { color:var(--money); font-size:13px; }
+.pl.xp b { color:var(--cool); }
+.promo {
+  padding:10px 12px; border-radius:var(--r-sm); font-size:12.5px; line-height:1.5;
+  background:linear-gradient(90deg,#1E1806,var(--surface)); border:1px solid var(--gold);
+  color:var(--gold); margin-bottom:8px;
+}
+.debt-hint { color:#FFB0C0 !important; }
+
+/* --- ficha de rango (pestaña Carrera) --- */
+.rankcard {
+  padding:13px; border-radius:var(--r); margin-bottom:8px;
+  background:linear-gradient(160deg,#101A30,#0C1220); border:1px solid var(--line2);
+}
+.rk-head { display:flex; align-items:center; gap:10px; margin-bottom:9px; }
+.rk-head .ic { width:24px; height:24px; color:var(--gold); }
+.rk-head b { font-size:15px; display:block; }
+.rk-head small { color:var(--dim2); font-size:11px; font-style:italic; }
+.rk-salary { margin-left:auto; color:var(--money); font-variant-numeric:tabular-nums; font-weight:700; font-size:13px; }
+.rankcard .bar { margin-bottom:5px; }
+.rankcard > small { font-size:11px; color:var(--dim2); line-height:1.5; display:block; }
+.rankcard small b { color:var(--dim); }
+.dimitir { margin-top:10px; cursor:pointer; }
+.dimitir:hover { border-color:var(--danger); color:var(--danger); }
+
+.rung.locked { opacity:.28; }
+.rung.locked em { color:var(--danger); opacity:.8; }
+.row.blocked { opacity:.55; }

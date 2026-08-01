@@ -1,22 +1,25 @@
-// Arranque y bucle principal. La simulación va con delta-time real, así que
-// da igual a qué fps corra el navegador ni si la pestaña se queda en segundo plano.
+// Arranque y bucle principal. La vida del operario: fichar, currar 2,5 minutos,
+// cobrar (o llorar), pagar facturas y vuelta a empezar. El motor sólo corre
+// durante el turno: fuera de él, el juego está literalmente parado.
 
 import {
-  step, click, buyUpgrade, buyAutomation, buySocket, buyBulb, upgradeAll, buyForzado,
-  buyConsumable, buyPrestige, doPrestige, applyOffline, stats,
+  step, click, startDay, endDay, resetLife, objectiveProgress,
+  buyUpgrade, buyAutomation, buyBulb, upgradeAll, buyForzado,
+  buyConsumable, buySkill, stats,
 } from './engine/engine.js';
-import { ACHIEVEMENTS, TIERS } from './engine/config.js';
+import { ACHIEVEMENTS, RANKS, TIERS, CORE, XP } from './engine/config.js';
 import { load, save, flush, wipe } from './engine/save.js';
-import { fmt, money, duration } from './engine/format.js';
+import { fmt, money, pct } from './engine/format.js';
 import * as scene from './ui/scene.js';
 import * as shop from './ui/shop.js';
 import * as hud from './ui/hud.js';
 import * as fx from './ui/fx.js';
+import * as flavor from './ui/flavor.js';
 import { icon } from './ui/art.js';
 
 const app = document.getElementById('app');
-const boot = load();
-let S = boot.state;
+const objbar = document.getElementById('objbar');
+let S = load().state;
 
 // -------------------------------------------------------------- montaje
 hud.mount(document.getElementById('hud'));
@@ -31,23 +34,189 @@ fx.mount(document.getElementById('fx'), document.getElementById('toasts'));
 scene.build(S);
 shop.setTab('mejoras');
 
+// ------------------------------------------------------------- diálogos
+let sheetEl = null;
+function sheet(html, buttons, locked = true) {
+  closeSheet();
+  const d = document.createElement('div');
+  d.className = 'modal' + (locked ? ' locked' : '');
+  d.innerHTML = `<div class="sheet">${html}<div class="sheet-btns">
+    ${buttons.map((b, i) => `<button class="${b.cls || 'big'}" data-btn="${i}">${b.label}</button>`).join('')}
+  </div></div>`;
+  document.body.appendChild(d);
+  sheetEl = d;
+  d.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-btn]');
+    if (b) { const cb = buttons[+b.dataset.btn].cb; closeSheet(); if (cb) cb(); }
+    else if (!locked && ev.target === d) closeSheet();
+  });
+}
+function closeSheet() { if (sheetEl) { sheetEl.remove(); sheetEl = null; } }
+
+// ----------------------------------------------------------- flujo del día
+function ficharScreen() {
+  const R = RANKS[S.rank];
+  const rentToday = (S.day + 1) % CORE.rentEvery === 0;
+  const st = stats(S);
+  sheet(`
+    <h2>${icon('clock')} Día ${S.day + 1} · ${R.name}</h2>
+    <p class="quote">${flavor.pick(flavor.JEFE_MANANA)}</p>
+    <div class="briefing">
+      <div><span>Cuota de hoy</span><b>${money(S.quota)}</b></div>
+      <div><span>Sueldo base</span><b>${money(R.salary)}</b></div>
+      <div><span>Turno</span><b>${st.shiftLen} s</b></div>
+      <div><span>Facturas de hoy</span><b>${money(R.salary * CORE.foodRate * st.billMult + (rentToday ? R.salary * CORE.rentRate * st.billMult : 0))}${rentToday ? ' 🏠' : ''}</b></div>
+    </div>
+    ${S.debt > 0 ? `<p class="warn debt-hint">⚠ ${flavor.CALABOZO_AVISO} Debes ${money(S.debt)}.</p>` : ''}
+    <p class="warn">Los objetivos del día se reparten al fichar. Las roturas que no
+    repongas antes de salir, van a la nómina.</p>`,
+    [{ label: flavor.pick(flavor.FICHAR_BTN), cb: beginDay }]);
+}
+
+function beginDay() {
+  startDay(S);
+  drainEvents();
+  scene.build(S);
+  buildObjbar();
+  save(S, true);
+}
+
+function buildObjbar() {
+  const sh = S.shift;
+  if (!sh || !sh.active) { objbar.innerHTML = ''; return; }
+  objbar.innerHTML = `
+    <span class="obj-label">Hoy:</span>
+    <span class="obj" data-o="quota">${icon('bolt')}<i>cuota ${fmt(S.quota)} €</i><b></b></span>
+    ${sh.objectives.map((o, i) =>
+      `<span class="obj" data-o="${i}" title="${flavor.OBJETIVO_DESC[o.type](o.target)}">
+        ${icon(o.type === 'roturas' ? 'shield' : o.type === 'surges' ? 'surge' : o.type === 'sweet' ? 'tap' : 'bulb')}
+        <i>${flavor.OBJETIVO_CORTO[o.type](o.target)}</i><b></b>
+      </span>`).join('')}`;
+}
+
+let objRefs = null;
+function tickObjbar() {
+  const sh = S.shift;
+  if (!sh || !sh.active) return;
+  if (!objRefs || objRefs.bar !== objbar.firstElementChild) {
+    objRefs = { bar: objbar.firstElementChild, els: [...objbar.querySelectorAll('.obj')] };
+  }
+  for (const el of objRefs.els) {
+    const key = el.dataset.o;
+    let txt, ok;
+    if (key === 'quota') {
+      const r = Math.min(1, sh.produced / S.quota);
+      txt = pct(r, 0); ok = r >= 1;
+    } else {
+      const o = sh.objectives[+key];
+      const p = objectiveProgress(S, o);
+      ok = p.ok;
+      txt = o.type === 'roturas' ? `${p.cur}/${p.max}` :
+            o.type === 'final' ? `${p.cur}/${p.max}` : `${Math.min(p.cur, p.max)}/${p.max}`;
+    }
+    const b = el.querySelector('b');
+    if (b.textContent !== txt) b.textContent = txt;
+    el.classList.toggle('ok', ok);
+  }
+}
+
+function endDayFlow() {
+  const r = endDay(S);
+  drainEvents();
+  objbar.innerHTML = '';
+  objRefs = null;
+  save(S, true);
+  summaryScreen(r);
+}
+
+function summaryScreen(r) {
+  const quote = r.ratio >= 1 ? flavor.pick(flavor.PAGA_BIEN)
+              : r.ratio >= CORE.fireRatio ? flavor.pick(flavor.PAGA_REGULAR)
+              : flavor.pick(flavor.PAGA_MAL);
+  const objLines = r.objectives.map((o) =>
+    `<div class="pl ${o.met ? 'ok' : 'ko'}"><span>${o.met ? '✓' : '✗'} ${flavor.OBJETIVO_CORTO[o.type](o.target)}</span>
+     <b>${o.met ? '+' + money(CORE.primaRate * RANKS[r.rank].salary) : '—'}</b></div>`).join('');
+  sheet(`
+    <h2>${icon('coin')} Parte del día ${r.day}</h2>
+    <p class="quote">${quote}</p>
+    <div class="payroll">
+      <div class="pl"><span>Producción</span><b>${money(r.produced)} · ${pct(r.ratio, 0)} de la cuota</b></div>
+      <div class="pl"><span>Sueldo base</span><b>${money(r.base)}</b></div>
+      ${objLines}
+      ${r.excess > 0 ? `<div class="pl ok"><span>Prima de productividad</span><b>+${money(r.excess)}</b></div>` : ''}
+      ${r.deduct > 0 ? `<div class="pl ko"><span>Roturas (${r.breaks}) — «${flavor.pick(flavor.ROTURA)}»</span><b>−${money(r.deduct)}</b></div>` : ''}
+      <div class="pl total"><span>Nómina</span><b>${money(r.nomina)}</b></div>
+      <div class="pl bill"><span>${flavor.pick(flavor.COMIDA)}</span><b>−${money(r.food)}</b></div>
+      ${r.rent > 0 ? `<div class="pl bill"><span>${flavor.pick(flavor.ALQUILER)}</span><b>−${money(r.rent)}</b></div>` : ''}
+      ${r.interest > 0 ? `<div class="pl ko"><span>Interés de la deuda</span><b>+${money(r.interest)} a deber</b></div>` : ''}
+      ${r.repaid > 0 ? `<div class="pl"><span>Pago de deuda</span><b>−${money(r.repaid)}</b></div>` : ''}
+      <div class="pl total"><span>Banco</span><b>${money(r.bank)}${r.debt > 0 ? ` · debes ${money(r.debt)}` : ''}</b></div>
+      <div class="pl xp"><span>Experiencia</span><b>+${fmt(r.xp)} XP</b></div>
+    </div>
+    ${r.promotion != null ? `<p class="promo">🎉 ${flavor.pick(flavor.ASCENSO_TXT)}<br>
+      Ahora eres <b>${RANKS[r.promotion].name}</b> (${RANKS[r.promotion].mote}).</p>` : ''}
+    ${r.fail === 'calabozo' ? '' : r.fireStreak > 0 ? `<p class="warn">⚠ Llevas ${r.fireStreak} día(s) muy por debajo de la cuota. A los ${CORE.fireDays}, despido.</p>` : ''}`,
+    r.fail
+      ? [{ label: 'Asumir las consecuencias…', cb: () => failScreen(r.fail) }]
+      : [{ label: 'Al día siguiente', cb: ficharScreen }]);
+  if (r.promotion != null) { fx.shake(app); scene.build(S); }
+}
+
+function failScreen(reason) {
+  const txt = reason === 'calabozo' ? flavor.pick(flavor.CALABOZO_TXT) : flavor.pick(flavor.DESPIDO_TXT);
+  const { state, finiquito } = resetLife(S, reason);
+  sheet(`
+    <h2>${icon(reason === 'calabozo' ? 'lock' : 'wrench')} ${reason === 'calabozo' ? 'Calabozo' : 'Despedido'}</h2>
+    <p>${txt}</p>
+    <div class="payroll">
+      <div class="pl xp"><span>Finiquito en experiencia</span><b>+${fmt(finiquito)} XP</b></div>
+      <div class="pl"><span>Empiezas de</span><b>${RANKS[state.rank].name}</b></div>
+    </div>
+    <p class="warn">Tu experiencia, habilidades y logros siguen contigo. Lo demás… lo demás no.</p>`,
+    [{ label: 'Siguiente vida laboral', cb: () => { S = state; afterReset(); } }]);
+  fx.shake(app, true);
+}
+
+function askDimitir() {
+  if (S.shift && S.shift.active) return;
+  const st = stats(S);
+  const fin = Math.round(XP.quitBase * (S.rank + 1) * Math.sqrt(Math.max(1, S.day)) * st.xpMult);
+  sheet(`
+    <h2>${icon('power')} ¿Dimitir?</h2>
+    <p>Portazo, finiquito y a empezar de cero en otra empresa. Te llevas
+    <b class="sp">${fmt(fin)} XP</b> de finiquito además de todo lo aprendido.</p>
+    <p class="warn">Pierdes: banco, maquinaria, mejoras y rango. Conservas: experiencia,
+    habilidades y logros.</p>`,
+    [{ label: 'Me quedo', cls: 'ghost', cb: null },
+     { label: 'Dimito, con estilo', cb: () => {
+        const { state, finiquito } = resetLife(S, 'dimision');
+        S = state;
+        fx.toast(flavor.pick(flavor.DIMISION_TXT).slice(0, 80) + '…', 'gold', 'power');
+        fx.toast(`Finiquito: +${fmt(finiquito)} XP`, 'good', 'trophy');
+        afterReset();
+      } }], false);
+}
+
+function afterReset() {
+  scene.build(S);
+  shop.setTab('carrera');
+  save(S, true);
+  ficharScreen();
+}
+
 // ---------------------------------------------------------------- click
 function doClick(i, ev) {
-  const before = S.money;
   const r = click(S, i);
   if (!r) return;
   drainEvents(ev);
-  if (S.money - before > 0) hud.flashMoney();
+  hud.flashMoney();
 }
 
-/**
- * Los eventos que emite el motor se traducen aquí a efectos visuales.
- * El motor no sabe nada del DOM; esto es el único puente.
- */
-function drainEvents(ev) {
+function drainEvents() {
   if (!S.events.length) return;
+  let over = false;
   for (const e of S.events) {
-    const at = scene.socketAnchor(e.i);
+    const at = e.i != null ? scene.socketAnchor(e.i) : null;
     switch (e.type) {
       case 'click': {
         if (at && !e.auto) {
@@ -63,16 +232,16 @@ function drainEvents(ev) {
       }
       case 'break':
         if (at) { fx.shatter(at.x, at.y); fx.float(at.x, at.y, '¡REVENTÓ!', 'bad'); }
-        fx.toast(`Se rompió una ${TIERS[e.tier].name}. Toca reponerla.`, 'bad', 'bulb');
+        fx.toast(`${TIERS[e.tier].name} rota. ${flavor.pick(flavor.ROTURA)}`, 'bad', 'bulb');
         fx.shake(app, true);
         scene.build(S);
         break;
       case 'saved':
         if (at) fx.float(at.x, at.y, 'FUSIBLE', 'save');
-        fx.toast('El fusible ha salvado la bombilla.', 'good', 'fuse');
+        fx.toast('El fusible ha saltado. La bombilla vive.', 'good', 'fuse');
         break;
       case 'replaced':
-        fx.toast(e.free ? 'Repuesto colocado.' : 'El técnico ha repuesto la bombilla.', '', 'wrench');
+        fx.toast(e.free ? 'Repuesto colocado, ni rastro del crimen.' : 'El técnico ha pasado factura. Literalmente.', '', 'wrench');
         scene.build(S);
         break;
       case 'install':
@@ -81,15 +250,19 @@ function drainEvents(ev) {
         break;
       case 'achievement': {
         const a = ACHIEVEMENTS.find((x) => x.id === e.id);
-        if (a) fx.toast(`Logro: ${a.name} · +${a.mult}% dinero`, 'gold', 'trophy');
+        if (a) fx.toast(`Logro: ${a.name} · +${a.mult}% producción`, 'gold', 'trophy');
         break;
       }
       case 'consumable':
         scene.build(S);
         break;
+      case 'shiftOver':
+        over = true;
+        break;
     }
   }
   S.events.length = 0;
+  if (over) endDayFlow();
 }
 
 // -------------------------------------------------------------- compras
@@ -99,8 +272,6 @@ function act(kind, id, arg) {
     case 'bulk':  shop.setBulk(id === 'max' ? 'max' : +id); return;
     case 'upg':   ok = buyBulk(id); break;
     case 'aut':   ok = buyAutomation(S, id); break;
-    case 'sock':  ok = buySocket(S); if (ok) scene.build(S); break;
-    // Reponer si reventó, o subir exactamente un peldaño. Nunca salta niveles.
     case 'bulb':  ok = buyBulb(S, +arg); break;
     case 'upall': ok = upgradeAll(S) > 0; if (ok) scene.build(S); break;
     case 'forzar': {
@@ -110,8 +281,8 @@ function act(kind, id, arg) {
       break;
     }
     case 'con':   ok = buyConsumable(S, id); break;
-    case 'pre':   ok = buyPrestige(S, id); break;
-    case 'prestige': return askPrestige();
+    case 'skl':   ok = buySkill(S, id); break;
+    case 'dimitir': return askDimitir();
     case 'wipe':  return askWipe();
   }
   if (!ok) return;
@@ -120,7 +291,6 @@ function act(kind, id, arg) {
   shop.refresh(S);
 }
 
-/** Compra en lote respetando el selector x1 / x10 / Máx. */
 function buyBulk(id) {
   const n = shop.bulk === 'max' ? 500 : shop.bulk;
   let bought = 0;
@@ -131,77 +301,23 @@ function buyBulk(id) {
   return bought > 0;
 }
 
-// ------------------------------------------------------------ diálogos
-function dialog(html, onYes, opts = {}) {
-  const d = document.createElement('div');
-  d.className = 'modal';
-  // Los avisos informativos sólo llevan un botón: preguntar "¿cancelar?" por
-  // algo que ya ha pasado no tiene sentido.
-  const btns = opts.okOnly
-    ? `<button class="big" data-no>${opts.ok || 'Entendido'}</button>`
-    : `<button class="ghost" data-no>Cancelar</button>
-       <button class="big" data-yes>${opts.ok || 'Confirmar'}</button>`;
-  d.innerHTML = `<div class="sheet">${html}<div class="sheet-btns">${btns}</div></div>`;
-  document.body.appendChild(d);
-  d.addEventListener('click', (ev) => {
-    if (ev.target.closest('[data-yes]')) { d.remove(); onYes(); }
-    else if (ev.target.closest('[data-no]') || ev.target === d) d.remove();
-  });
-}
-
-function askPrestige() {
-  const res = doPrestige(S);
-  if (!res) return;
-  dialog(`<h2>${icon('power')} Apagón</h2>
-    <p>Vas a reiniciar la instalación entera: pierdes dinero, zócalos, mejoras y
-    automatismos. A cambio te llevas <b class="sp">${fmt(res.gained)} ⚡ chispas</b>
-    permanentes para gastar en mejoras que ya nunca se pierden.</p>
-    <p class="warn">Los logros, las chispas y las estadísticas se conservan.</p>`,
-    () => {
-
-      S = res.state;
-      fx.shake(app, true);
-      fx.toast(`Apagón. +${fmt(res.gained)} ⚡ chispas`, 'gold', 'power');
-      scene.build(S);
-      shop.setTab('apagon');
-      save(S, true);
-    });
-}
-
 function askWipe() {
-  dialog(`<h2>${icon('lock')} Borrar la partida</h2>
-    <p>Esto elimina <b>todo</b>: dinero, chispas, logros y estadísticas.
-    No hay vuelta atrás.</p>`, () => {
-      wipe();
-      location.reload();
-    });
-}
-
-// -------------------------------------------------------- ganancias offline
-if (boot.away > 60) {
-  const r = applyOffline(S, boot.away);
-  scene.build(S);
-  const st = stats(S);
-  setTimeout(() => dialog(`<h2>${icon('clock')} Mientras no estabas</h2>
-    <p>Han pasado <b>${duration(r.seconds)}</b>. Tus bombillas se han ido apagando solas.</p>
-    ${r.money > 0
-      ? `<p>Aun así has recogido <b class="sp">${money(r.money)}</b>
-         (${(st.offline * 100).toFixed(0)}% de eficiencia offline).</p>`
-      : `<p class="warn">No has cobrado nada: necesitas la mejora <b>Espejo</b>
-         (o <b>Eco</b> con chispas) para producir mientras no juegas.</p>`}`,
-    () => {}, { okOnly: true, ok: 'Seguir jugando' }), 350);
+  sheet(`<h2>${icon('lock')} Borrar la partida</h2>
+    <p>Esto elimina <b>todo</b>: experiencia, habilidades, logros, expediente.
+    Como si nunca hubieras trabajado aquí. No hay vuelta atrás.</p>`,
+    [{ label: 'Mejor no', cls: 'ghost', cb: null },
+     { label: 'Borrarlo todo', cb: () => { wipe(); location.reload(); } }], false);
 }
 
 // ----------------------------------------------------------- bucle
 let prev = performance.now();
-let acc = 0;               // acumulador para refrescar la UI a menos de 60 Hz
-const UI_EVERY = 1 / 12;   // el panel no necesita ir a 60 fps
+let acc = 0;
+const UI_EVERY = 1 / 12;
 
 function loop(now) {
   let dt = (now - prev) / 1000;
   prev = now;
-  // Si el navegador nos ha tenido parados (pestaña oculta), lo tratamos como
-  // ausencia y lo capamos: nada de saltos de 20 minutos en un solo frame.
+  // Pestaña oculta a mitad de turno: el reloj laboral no corre sin ti.
   if (dt > 1) dt = 1;
 
   step(S, dt);
@@ -209,7 +325,8 @@ function loop(now) {
 
   const st = stats(S);
   scene.frame(S, st);
-  hud.frame(S, st);
+  hud.frame(S);
+  tickObjbar();
 
   acc += dt;
   if (acc >= UI_EVERY) { acc = 0; shop.refresh(S); }
@@ -219,7 +336,13 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
-// Al volver de segundo plano, cobramos el tiempo perdido como si fuese offline.
+// Al arrancar: si había un turno a medias se retoma tal cual; si no, a fichar.
+if (!(S.shift && S.shift.active)) {
+  setTimeout(ficharScreen, 400);
+} else {
+  buildObjbar();
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { flush(); return; }
   prev = performance.now();
@@ -227,22 +350,20 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => flush());
 window.addEventListener('beforeunload', () => flush());
 
-// Cache local: el juego abre al instante y se puede jugar sin conexión.
-// Sólo bajo http(s): con file:// los service workers no existen.
+// Cache local: el juego abre al instante y funciona sin conexión.
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
 
-// La rejilla se mide en píxeles, así que hay que recalcularla al cambiar de tamaño.
 let resizeT;
 window.addEventListener('resize', () => {
   clearTimeout(resizeT);
   resizeT = setTimeout(() => scene.layout(), 120);
 });
 
-// Atajo de teclado: 1..9 pulsan el zócalo correspondiente. Se juega mucho mejor.
+// Teclas 1..9: pulsar el zócalo correspondiente.
 window.addEventListener('keydown', (ev) => {
   if (ev.repeat || ev.metaKey || ev.ctrlKey) return;
   const n = parseInt(ev.key, 10);

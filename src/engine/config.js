@@ -1,160 +1,209 @@
-// FULGOR — todo el balance del juego vive aquí. Un solo sitio que tocar para tunear.
+// FULGOR v2 «El operario» — todo el balance del juego vive aquí.
+// Eres operario de Lumínicas Paquita e Hijos, S.L. Cada día fichas, cumples
+// la cuota, cobras la nómina, pagas las facturas y rezas por no acabar en
+// el calabozo. La experiencia (XP) es lo único que nadie te puede quitar.
 
 // ---------------------------------------------------------------- bombillas
-// LA ESCALERA. Se sube peldaño a peldaño: un zócalo sólo puede mejorar al nivel
-// siguiente, nunca saltar. Cada peldaño da más dinero Y aguanta más encendido,
-// que es lo que hace que apetezca subir.
-//   base  = €/s a carga 100% sin multiplicadores
-//   decay = carga perdida por segundo (1/decay = segundos que aguanta encendida)
-//   cost  = lo que cuesta instalar ese nivel en un zócalo
+// LA ESCALERA. El nivel es del zócalo y sube de uno en uno. Curva de producción
+// plana (~x2.4 por peldaño) porque el ingreso real lo marca la nómina, no el click.
+//   base  = €/s de producción a carga 100%
+//   decay = carga perdida por segundo (1/decay = segundos encendida)
+//   cost  = lo que cuesta instalar ese nivel (del banco del jugador)
 export const TIERS = [
-  { id: 'incandescente', name: 'Incandescente', base: 1,     decay: 0.167, cost: 0,       glow: '#FFB347', core: '#FFF0C2', rim: '#FF8A2B' },
-  { id: 'halogena',      name: 'Halógena',      base: 4.5,   decay: 0.147, cost: 90,      glow: '#FFD98A', core: '#FFFBE8', rim: '#FFA92E' },
-  { id: 'fluorescente',  name: 'Fluorescente',  base: 22,    decay: 0.130, cost: 650,     glow: '#9FF5D8', core: '#EAFFF8', rim: '#2FD6A5' },
-  { id: 'led',           name: 'LED',           base: 110,   decay: 0.114, cost: 4800,    glow: '#7FD4FF', core: '#E9F8FF', rim: '#2A9BE8' },
-  { id: 'xenon',         name: 'Xenón',         base: 600,   decay: 0.100, cost: 38000,   glow: '#C7B8FF', core: '#F3EFFF', rim: '#7A5CF0' },
-  { id: 'neon',          name: 'Neón',          base: 3400,  decay: 0.088, cost: 310000,  glow: '#FF5FA8', core: '#FFE6F2', rim: '#E01E76' },
-  { id: 'plasma',        name: 'Plasma',        base: 20000, decay: 0.077, cost: 2.6e6,   glow: '#FF7A45', core: '#FFEDE2', rim: '#E23C0B' },
-  { id: 'fotonica',      name: 'Fotónica',      base: 1.3e5, decay: 0.068, cost: 2.3e7,   glow: '#3DF5FF', core: '#E2FEFF', rim: '#00B4C6' },
-  { id: 'cuantica',      name: 'Cuántica',      base: 9e5,   decay: 0.060, cost: 2.0e8,   glow: '#6BFF9E', core: '#E9FFF1', rim: '#12C25C' },
-  { id: 'estelar',       name: 'Estelar',       base: 7e6,   decay: 0.053, cost: 1.8e9,   glow: '#FFF3C4', core: '#FFFFFF', rim: '#FFC94A' },
+  { id: 'incandescente', name: 'Incandescente', base: 1,    decay: 0.167, cost: 25,    glow: '#FFB347', core: '#FFF0C2', rim: '#FF8A2B' },
+  { id: 'halogena',      name: 'Halógena',      base: 2.4,  decay: 0.147, cost: 70,    glow: '#FFD98A', core: '#FFFBE8', rim: '#FFA92E' },
+  { id: 'fluorescente',  name: 'Fluorescente',  base: 5.8,  decay: 0.130, cost: 200,   glow: '#9FF5D8', core: '#EAFFF8', rim: '#2FD6A5' },
+  { id: 'led',           name: 'LED',           base: 14,   decay: 0.114, cost: 480,   glow: '#7FD4FF', core: '#E9F8FF', rim: '#2A9BE8' },
+  { id: 'xenon',         name: 'Xenón',         base: 33,   decay: 0.100, cost: 1100,  glow: '#C7B8FF', core: '#F3EFFF', rim: '#7A5CF0' },
+  { id: 'neon',          name: 'Neón',          base: 80,   decay: 0.088, cost: 2600,  glow: '#FF5FA8', core: '#FFE6F2', rim: '#E01E76' },
+  { id: 'plasma',        name: 'Plasma',        base: 190,  decay: 0.077, cost: 6000,  glow: '#FF7A45', core: '#FFEDE2', rim: '#E23C0B' },
+  { id: 'fotonica',      name: 'Fotónica',      base: 460,  decay: 0.068, cost: 13000, glow: '#3DF5FF', core: '#E2FEFF', rim: '#00B4C6' },
+  { id: 'cuantica',      name: 'Cuántica',      base: 1100, decay: 0.060, cost: 30000, glow: '#6BFF9E', core: '#E9FFF1', rim: '#12C25C' },
+  { id: 'estelar',       name: 'Estelar',       base: 2600, decay: 0.053, cost: 70000, glow: '#FFF3C4', core: '#FFFFFF', rim: '#FFC94A' },
 ];
 
 // ---------------------------------------------------------------- núcleo
 export const CORE = {
-  surgeLo: 0.85,       // carga >= esto  -> SOBRECARGA (riesgo)
-  sweetLo: 0.62,       // carga >= esto  -> recarga buena (sin riesgo, bonus pequeño)
-  surgeTime: 4.5,      // segundos que dura la sobrecarga
-  surgeCap: 2,         // stacks máximos base (x2 y x3). Avaricia lo sube con chispas
-  wearBase: 0.075,     // desgaste del primer stack
-  wearExp: 1.25,       // el desgaste escala stack^wearExp -> encadenar quema
-  coolRate: 0.05,      // desgaste recuperado por segundo cuando no estás sobrecargado
-  coolDelay: 1.2,      // segundos tras un click antes de empezar a enfriar
-  sweetWear: 0.012,    // desgaste minúsculo de la banda "buena"
-  clickRatio: 1.5,     // valor de click = base del tier * esto
-  sweetBonus: 1.5,     // multiplicador del click en banda buena
-  surgeBonus: 3,       // multiplicador del click al sobrecargar
-  // Apagada NO produce. Es la regla que sostiene todo el juego: si dejas que se
-  // apaguen, dejas de cobrar. (Antes había un suelo del 15% que pagaba solo.)
+  // el turno (idéntico a v1: bandas, sobrecarga, desgaste)
+  surgeLo: 0.85,
+  sweetLo: 0.62,
+  surgeTime: 4.5,
+  surgeCap: 2,
+  // Calibrado con la simulación de carrera: con 0.075 un jugador agresivo
+  // acababa 40 días con CERO roturas — el riesgo no mordía. Con 0.105,
+  // encadenar sobrecargas sin respiro rompe de verdad.
+  wearBase: 0.105,
+  wearExp: 1.25,
+  coolRate: 0.05,
+  coolDelay: 1.2,
+  sweetWear: 0.012,
+  clickRatio: 1.5,
+  sweetBonus: 1.5,
+  surgeBonus: 3,
   dimFloor: 0,
-  maxSockets: 12,
-  offlineCapH: 8,      // horas máximas de acumulación offline
-  offlineRate: 0.4,    // eficiencia bruta del offline antes de mejoras
-  prestigeAt: 1e6,     // € totales en la partida para desbloquear Apagón
-  // Forzado: compromiso permanente por zócalo. Más dinero, pero se apaga antes
-  // y se desgasta más rápido. Es la decisión que se repite toda la partida.
   forzadoOut: 1.5,
   forzadoDecay: 1.12,
   forzadoWear: 1.1,
   forzadoMax: 8,
+  maxSockets: 12,
+
+  // el día laboral
+  shift: 150,        // s de turno base (2,5 min: corto y dinámico)
+  primaRate: 0.20,   // cada objetivo cumplido paga 20% del sueldo
+  excessRate: 0.10,  // el exceso sobre la cuota paga al 10%…
+  excessCap: 1.0,    // …hasta un máximo de 1 sueldo (la empresa no es tonta)
+  deductCap: 0.60,   // las roturas descuentan como mucho el 60% del bruto
+  quotaGrowth: 0.06, // la cuota sube 6% por día cumplido en el mismo rango
+  quotaRelief: 0.12, // y baja 12% tras un día fallido (persigue, no entierra)
+  quotaFloor: 0.60,  // …sin bajar del 60% de la base del rango
+
+  // la vida
+  foodRate: 0.15,    // comida diaria = 15% del sueldo
+  rentRate: 1.0,     // alquiler = 1 sueldo…
+  rentEvery: 5,      // …cada 5 días
+  debtInterest: 0.08,// interés diario de la deuda (el Sr. Braulio no perdona)
+  jailDebt: 2.0,     // calabozo si la deuda supera 2 alquileres
+  fireRatio: 0.5,    // despido si produces menos del 50% de la cuota…
+  fireDays: 3,       // …3 días seguidos
 };
 
-export const socketCost = (owned) => 45 * Math.pow(5.5, owned - 1);
-
-// El forzado se paga en función de lo que produce ese zócalo, no en absoluto.
+// El forzado se paga según la maquinaria del zócalo.
 export const forzadoCost = (tier, level) =>
-  Math.max(50, TIERS[tier].base * 90) * Math.pow(2.4, level);
+  Math.max(40, TIERS[tier].base * 25) * Math.pow(2.2, level);
+
+// ---------------------------------------------------------------- la carrera
+// salary = sueldo base diario · quota = cuota base del rango
+// sockets/maxTier = lo que la empresa te deja tocar
+// promoteDays = días cumpliendo la cuota (no seguidos) para el ascenso
+export const RANKS = [
+  { id: 'aprendiz',   name: 'Aprendiz',       mote: 'el chaval de las bombillas', salary: 40,    quota: 130,    sockets: 1,  maxTier: 1, promoteDays: 3 },
+  { id: 'peon',       name: 'Peón',           mote: 'ya te dejan tocar dos',      salary: 95,    quota: 420,    sockets: 2,  maxTier: 2, promoteDays: 4 },
+  { id: 'oficial',    name: 'Oficial',        mote: 'con taquilla propia',        salary: 220,   quota: 1300,   sockets: 3,  maxTier: 3, promoteDays: 4 },
+  { id: 'tecnico',    name: 'Técnico',        mote: 'de filamentos y sus cosas',  salary: 500,   quota: 3800,   sockets: 4,  maxTier: 4, promoteDays: 5 },
+  { id: 'encargado',  name: 'Encargado',      mote: 'con llavero y todo',         salary: 1150,  quota: 12000,  sockets: 6,  maxTier: 5, promoteDays: 6 },
+  { id: 'jefeturno',  name: 'Jefe de Turno',  mote: 'Don Fulgencio te saluda',    salary: 2600,  quota: 42000,  sockets: 8,  maxTier: 7, promoteDays: 7 },
+  { id: 'jefeplanta', name: 'Jefe de Planta', mote: 'tu firma ya vale algo',      salary: 6000,  quota: 130000, sockets: 10, maxTier: 8, promoteDays: 8 },
+  { id: 'direccion',  name: 'Dirección',      mote: 'despacho con ventana',       salary: 14000, quota: 400000, sockets: 12, maxTier: 9, promoteDays: 9999 },
+];
 
 // ---------------------------------------------------------------- mejoras €
-// effect() devuelve el valor derivado del nivel; se consume en engine.stats()
 export const UPGRADES = [
-  { id: 'voltaje',    name: 'Voltaje',     desc: '+12% a todo el dinero por segundo.',            base: 25,   growth: 1.17, icon: 'bolt' },
-  { id: 'filamento',  name: 'Filamento',   desc: '-3% de velocidad de apagado.',                  base: 40,   growth: 1.21, icon: 'wave' },
-  { id: 'pulso',      name: 'Pulso',       desc: '+25% al dinero instantáneo de cada click.',     base: 20,   growth: 1.16, icon: 'tap' },
-  { id: 'aislamiento',name: 'Aislamiento', desc: '-4% de desgaste al sobrecargar.',               base: 120,  growth: 1.25, icon: 'shield' },
-  { id: 'disipador',  name: 'Disipador',   desc: '+8% de velocidad de enfriado del desgaste.',    base: 90,   growth: 1.22, icon: 'fan' },
-  { id: 'reactor',    name: 'Reactor',     desc: '+0.35 s de duración de la sobrecarga.',         base: 300,  growth: 1.30, icon: 'core' },
-  { id: 'cristal',    name: 'Cristal',     desc: '+6% de resistencia antes de romperse.',         base: 200,  growth: 1.26, icon: 'gem' },
-  { id: 'espejo',     name: 'Espejo',      desc: '+3% de ganancias mientras no juegas (máx 100%).',base: 1500, growth: 1.40, icon: 'mirror' },
+  { id: 'voltaje',    name: 'Voltaje',     desc: '+12% a toda la producción.',                 base: 25,  growth: 1.17, icon: 'bolt' },
+  { id: 'filamento',  name: 'Filamento',   desc: '-3% de velocidad de apagado.',               base: 40,  growth: 1.21, icon: 'wave' },
+  { id: 'pulso',      name: 'Pulso',       desc: '+25% a la producción de cada click.',        base: 20,  growth: 1.16, icon: 'tap' },
+  { id: 'aislamiento',name: 'Aislamiento', desc: '-4% de desgaste al sobrecargar.',            base: 120, growth: 1.25, icon: 'shield' },
+  { id: 'disipador',  name: 'Disipador',   desc: '+8% de velocidad de enfriado del desgaste.', base: 90,  growth: 1.22, icon: 'fan' },
+  { id: 'reactor',    name: 'Reactor',     desc: '+0.35 s de duración de la sobrecarga.',      base: 300, growth: 1.30, icon: 'core' },
+  { id: 'cristal',    name: 'Cristal',     desc: '+6% de resistencia antes de romperse.',      base: 200, growth: 1.26, icon: 'gem' },
+  { id: 'despertador',name: 'Despertador', desc: '+6 s de turno. Llegas antes que el jefe.',   base: 150, growth: 1.50, icon: 'clock', max: 10 },
 ];
 
 // ---------------------------------------------------------------- automatismos €
 export const AUTOMATION = [
   {
-    id: 'chispa', name: 'Chispa', max: 12, base: 500, growth: 2.3, icon: 'spark',
-    desc: 'Reenciende sola la bombilla más apagada. Nunca sobrecarga: es segura.',
+    id: 'chispa', name: 'Chispa', max: 12, base: 120, growth: 1.9, icon: 'spark',
+    desc: 'Un becario eléctrico: reenciende sola la bombilla más apagada. Nunca arriesga.',
     detail: (l) => l ? `Cada ${(5 / (1 + 0.45 * l)).toFixed(2)} s` : 'Inactiva',
   },
   {
-    id: 'tecnico', name: 'Técnico', max: 5, base: 5000, growth: 6, icon: 'wrench',
-    desc: 'Repone automáticamente las bombillas rotas (si te llega el dinero).',
+    id: 'tecnico', name: 'Técnico de guardia', max: 5, base: 400, growth: 2.4, icon: 'wrench',
+    desc: 'Repone las bombillas rotas en pleno turno, pagando de tu banco.',
     detail: (l) => l ? `Repone en ${(12 / l).toFixed(1)} s` : 'Inactivo',
   },
   {
-    id: 'condensador', name: 'Condensador', max: 3, base: 2e6, growth: 25, icon: 'stack',
-    desc: 'Permite que la Chispa se atreva a sobrecargar, hasta cierto nivel de stacks.',
+    id: 'condensador', name: 'Condensador', max: 3, base: 900, growth: 4, icon: 'stack',
+    desc: 'Permite que la Chispa se atreva a sobrecargar, hasta cierto nivel.',
     detail: (l) => l ? `Sobrecarga hasta x${l + 1}` : 'Inactivo',
   },
 ];
 
 // ---------------------------------------------------------------- consumibles €
-// El precio escala con la mejor bombilla que tengas (mult ≈ segundos de producción),
-// así siguen siendo relevantes en todo el juego.
+// Precio ligado a tu sueldo: siguen doliendo (y valiendo) en cualquier rango.
 export const CONSUMABLES = [
   { id: 'fusible',      name: 'Fusible',       mult: 8,  icon: 'fuse',   stack: true,
     desc: 'Evita la siguiente rotura. Se gasta al salvarte.' },
   { id: 'repuesto',     name: 'Repuesto',      mult: 6,  icon: 'bulb',   stack: true,
-    desc: 'Bombilla de recambio. Se coloca sola y gratis cuando una se rompe.' },
+    desc: 'Bombilla de recambio. Se coloca sola y gratis cuando una revienta.' },
   { id: 'refrigerante', name: 'Refrigerante',  mult: 4,  icon: 'snow',   instant: 'cool',
     desc: 'Pone a cero el desgaste de todas las bombillas.' },
   { id: 'bateria',      name: 'Batería',       mult: 3,  icon: 'battery',instant: 'charge',
     desc: 'Carga todas las bombillas al 100% al instante.' },
-  { id: 'sobretension', name: 'Sobretensión',  mult: 20, icon: 'surge',  buff: { mult: 3, time: 30 },
-    desc: 'x3 a todo el dinero durante 30 s.' },
-  { id: 'estabilizador',name: 'Estabilizador', mult: 25, icon: 'lock',   buff: { noWear: true, time: 60 },
-    desc: 'Sin desgaste durante 60 s. Sobrecarga sin miedo.' },
+  { id: 'sobretension', name: 'Sobretensión',  mult: 15, icon: 'surge',  buff: { mult: 3, time: 30 },
+    desc: 'x3 a toda la producción durante 30 s de turno.' },
+  { id: 'estabilizador',name: 'Estabilizador', mult: 20, icon: 'lock',   buff: { noWear: true, time: 60 },
+    desc: 'Sin desgaste durante 60 s de turno. Sobrecarga sin miedo.' },
 ];
 
-// ---------------------------------------------------------------- prestigio ⚡
-export const sparksFor = (runEarned) =>
-  runEarned < CORE.prestigeAt ? 0 : Math.floor(10 * Math.pow(runEarned / CORE.prestigeAt, 0.55));
+export const consumablePrice = (rank, id) =>
+  CONSUMABLES.find((c) => c.id === id).mult * RANKS[rank].salary / 10;
 
-export const PRESTIGE = [
-  { id: 'nucleo',   name: 'Núcleo',   icon: 'core',   max: 999, base: 4, growth: 1.55,
-    desc: '+25% de dinero global, para siempre.' },
-  { id: 'genesis',  name: 'Génesis',  icon: 'grid',   costs: [8, 30, 120, 480, 2000],
-    desc: 'Empiezas cada partida con un zócalo extra.' },
-  { id: 'herencia', name: 'Herencia', icon: 'bulb',   costs: [15, 90, 500, 3000, 18000],
-    desc: 'Empiezas con bombillas de un nivel superior.' },
-  { id: 'memoria',  name: 'Memoria',  icon: 'coin',   max: 999, base: 6, growth: 2.2,
-    desc: 'Empiezas con dinero en el bolsillo.' },
-  { id: 'reflejo',  name: 'Reflejo',  icon: 'spark',  costs: [12, 60, 300, 1500],
-    desc: 'Empiezas con la Chispa ya instalada.' },
-  { id: 'temple',   name: 'Temple',   icon: 'shield', max: 999, base: 10, growth: 1.7,
-    desc: '-8% de desgaste global.' },
-  { id: 'avaricia', name: 'Avaricia', icon: 'stack',  costs: [25, 200, 1600, 12000],
-    desc: '+1 al máximo de stacks de sobrecarga.' },
-  { id: 'eco',      name: 'Eco',      icon: 'mirror', max: 5, base: 20, growth: 2.4,
-    desc: '+20% de ganancias offline de partida.' },
+// ---------------------------------------------------------------- habilidades XP
+// La experiencia NO se pierde nunca: ni en el calabozo, ni despedido, ni dimitiendo.
+// costs[] = niveles finitos · base/growth = escalera infinita (salvo `max`)
+export const SKILLS = [
+  { id: 'callo',      name: 'Callo laboral', icon: 'tap',    base: 60,  growth: 1.6,
+    desc: '+10% de nómina por nivel. Las manos ya saben solas.' },
+  { id: 'enchufe',    name: 'Enchufe',       icon: 'bolt',   costs: [150, 600, 2000, 6000],
+    desc: 'Tu cuñado conoce al jefe: cada vida nueva empiezas un rango más arriba.' },
+  { id: 'colchon',    name: 'Colchón',       icon: 'coin',   base: 80,  growth: 2.0,
+    desc: 'Empiezas cada vida con ahorros bajo el colchón.' },
+  { id: 'manitas',    name: 'Manitas',       icon: 'shield', base: 90,  growth: 1.7,
+    desc: '-8% de desgaste global por nivel. Tocas con cariño.' },
+  { id: 'ojoclinico', name: 'Ojo clínico',   icon: 'gem',    costs: [200, 1200, 5000],
+    desc: '+1 al máximo de stacks de sobrecarga. Sabes hasta dónde aguanta.' },
+  { id: 'madrugador', name: 'Madrugador',    icon: 'clock',  base: 100, growth: 1.8, max: 5,
+    desc: '+12 s de turno por nivel. El primero en fichar.' },
+  { id: 'labia',      name: 'Labia',         icon: 'mirror', base: 70,  growth: 1.7, max: 6,
+    desc: '-8% en todas las facturas por nivel. Al Sr. Braulio le caes bien.' },
+  { id: 'esponja',    name: 'Esponja',       icon: 'grid',   base: 120, growth: 2.0, max: 5,
+    desc: '+15% de experiencia ganada por nivel.' },
+];
+
+// ---------------------------------------------------------------- experiencia
+export const XP = {
+  day: 4,        // por día trabajado, ×(rango+1)
+  quota: 6,      // por cumplir la cuota, ×(rango+1)
+  objective: 8,  // por objetivo secundario, ×(rango+1)
+  promotion: 60, // por ascenso, ×(rango nuevo +1)
+  // finiquito al terminar una vida, ×(rango+1)×√días — dimitir a tiempo es un arte
+  quitBase: 40, firedBase: 15, jailBase: 5,
+};
+
+// ---------------------------------------------------------------- objetivos del día
+// Generadores por rango. La descripción con gracia la pone flavor.js.
+export const OBJECTIVE_TYPES = [
+  { type: 'roturas', gen: () => ({ target: 1 }) },            // como mucho 1 rotura
+  { type: 'surges',  gen: (r) => ({ target: 4 + r * 2 }) },   // N sobrecargas
+  { type: 'sweet',   gen: (r) => ({ target: 6 + r * 2 }) },   // N clicks en banda buena
+  { type: 'final',   gen: () => ({ target: 0.3 }) },          // acabar todas encendidas
 ];
 
 // ---------------------------------------------------------------- logros
-// Cada logro suma su `mult` (en %) al multiplicador global. test(state, stats)
+// Cada logro suma su `mult` (%) a la producción. test(state)
 export const ACHIEVEMENTS = [
-  { id: 'first',    name: 'Hágase la luz',    desc: 'Enciende tu primera bombilla.',      mult: 1,  test: (s) => s.stats.clicks >= 1 },
-  { id: 'click100', name: 'Dedo inquieto',    desc: '100 clicks.',                        mult: 1,  test: (s) => s.stats.clicks >= 100 },
-  { id: 'click1k',  name: 'Tendinitis',       desc: '1.000 clicks.',                      mult: 2,  test: (s) => s.stats.clicks >= 1000 },
-  { id: 'click10k', name: 'Máquina',          desc: '10.000 clicks.',                     mult: 4,  test: (s) => s.stats.clicks >= 10000 },
-  { id: 'surge1',   name: 'Chispazo',         desc: 'Tu primera sobrecarga.',             mult: 1,  test: (s) => s.stats.surges >= 1 },
-  { id: 'surge100', name: 'Al límite',        desc: '100 sobrecargas.',                   mult: 2,  test: (s) => s.stats.surges >= 100 },
-  { id: 'surge2k',  name: 'Adicto al voltaje',desc: '2.000 sobrecargas.',                 mult: 5,  test: (s) => s.stats.surges >= 2000 },
-  { id: 'stack3',   name: 'Triplete',         desc: 'Alcanza x3 de sobrecarga.',          mult: 2,  test: (s) => s.stats.maxStack >= 2 },
-  { id: 'stack5',   name: 'Quíntuple',        desc: 'Alcanza x5 de sobrecarga.',          mult: 4,  test: (s) => s.stats.maxStack >= 4 },
-  { id: 'stack7',   name: 'Fuera de escala',  desc: 'Alcanza x7 de sobrecarga.',          mult: 8,  test: (s) => s.stats.maxStack >= 6 },
-  { id: 'break1',   name: 'Cristales rotos',  desc: 'Rompe tu primera bombilla.',         mult: 1,  test: (s) => s.stats.breaks >= 1 },
-  { id: 'break50',  name: 'Manazas',          desc: 'Rompe 50 bombillas.',                mult: 3,  test: (s) => s.stats.breaks >= 50 },
-  { id: 'break500', name: 'Vidriero',         desc: 'Rompe 500 bombillas.',               mult: 6,  test: (s) => s.stats.breaks >= 500 },
-  { id: 'sock4',    name: 'Instalación',      desc: 'Ten 4 zócalos.',                     mult: 2,  test: (s) => s.sockets.length >= 4 },
-  { id: 'sock8',    name: 'Nave industrial',  desc: 'Ten 8 zócalos.',                     mult: 4,  test: (s) => s.sockets.length >= 8 },
-  { id: 'sock12',   name: 'Ciudad entera',    desc: 'Ten los 12 zócalos.',                mult: 8,  test: (s) => s.sockets.length >= 12 },
-  { id: 'tier3',    name: 'Modernízate',      desc: 'Consigue una bombilla LED.',         mult: 2,  test: (s) => s.stats.maxTier >= 3 },
-  { id: 'tier5',    name: 'Rótulo de neón',   desc: 'Consigue una bombilla de Neón.',     mult: 4,  test: (s) => s.stats.maxTier >= 5 },
-  { id: 'tier7',    name: 'Física aplicada',  desc: 'Consigue una bombilla Fotónica.',    mult: 6,  test: (s) => s.stats.maxTier >= 7 },
-  { id: 'tier9',    name: 'Forjador de soles',desc: 'Consigue una bombilla Estelar.',     mult: 12, test: (s) => s.stats.maxTier >= 9 },
-  { id: 'earn1m',   name: 'Primer millón',    desc: 'Gana 1 M€ en total.',                mult: 2,  test: (s) => s.stats.lifeEarned >= 1e6 },
-  { id: 'earn1b',   name: 'Magnate',          desc: 'Gana 1.000 M€ en total.',            mult: 5,  test: (s) => s.stats.lifeEarned >= 1e9 },
-  { id: 'earn1t',   name: 'Fuera de mercado', desc: 'Gana 1 billón € en total.',          mult: 10, test: (s) => s.stats.lifeEarned >= 1e12 },
-  { id: 'pres1',    name: 'Apagón',           desc: 'Reinicia por primera vez.',          mult: 3,  test: (s) => s.stats.prestiges >= 1 },
-  { id: 'pres5',    name: 'Ciclo eterno',     desc: 'Reinicia 5 veces.',                  mult: 6,  test: (s) => s.stats.prestiges >= 5 },
-  { id: 'pres25',   name: 'Eterno retorno',   desc: 'Reinicia 25 veces.',                 mult: 15, test: (s) => s.stats.prestiges >= 25 },
+  { id: 'first',    name: 'Hágase la luz',        desc: 'Tu primer click.',                 mult: 1,  test: (s) => s.stats.clicks >= 1 },
+  { id: 'click500', name: 'Dedo de obrero',       desc: '500 clicks.',                      mult: 2,  test: (s) => s.stats.clicks >= 500 },
+  { id: 'click5k',  name: 'Callo digital',        desc: '5.000 clicks.',                    mult: 4,  test: (s) => s.stats.clicks >= 5000 },
+  { id: 'surge1',   name: 'Chispazo',             desc: 'Tu primera sobrecarga.',           mult: 1,  test: (s) => s.stats.surges >= 1 },
+  { id: 'surge200', name: 'Al límite',            desc: '200 sobrecargas.',                 mult: 3,  test: (s) => s.stats.surges >= 200 },
+  { id: 'surge2k',  name: 'Yonqui del voltaje',   desc: '2.000 sobrecargas.',               mult: 6,  test: (s) => s.stats.surges >= 2000 },
+  { id: 'stack3',   name: 'Triplete',             desc: 'Alcanza x3 de sobrecarga.',        mult: 2,  test: (s) => s.stats.maxStack >= 2 },
+  { id: 'stack5',   name: 'Cuádruple mortal',     desc: 'Alcanza x5 de sobrecarga.',        mult: 5,  test: (s) => s.stats.maxStack >= 4 },
+  { id: 'break1',   name: 'Cristales rotos',      desc: 'Rompe tu primera bombilla.',       mult: 1,  test: (s) => s.stats.breaks >= 1 },
+  { id: 'break100', name: 'Manazas certificado',  desc: 'Rompe 100 bombillas.',             mult: 4,  test: (s) => s.stats.breaks >= 100 },
+  { id: 'day1',     name: 'Primer día',           desc: 'Sobrevive a tu primer día.',       mult: 1,  test: (s) => s.stats.daysWorked >= 1 },
+  { id: 'day15',    name: 'Currante',             desc: '15 días trabajados.',              mult: 3,  test: (s) => s.stats.daysWorked >= 15 },
+  { id: 'day60',    name: 'El alma de la planta', desc: '60 días trabajados.',              mult: 6,  test: (s) => s.stats.daysWorked >= 60 },
+  { id: 'quota5',   name: 'Cumplidor',            desc: 'Cumple la cuota 5 veces.',         mult: 2,  test: (s) => s.stats.quotasMet >= 5 },
+  { id: 'quota30',  name: 'El favorito del jefe', desc: 'Cumple la cuota 30 veces.',        mult: 5,  test: (s) => s.stats.quotasMet >= 30 },
+  { id: 'obj20',    name: 'Empleado del mes',     desc: 'Cumple 20 objetivos secundarios.', mult: 3,  test: (s) => s.stats.objectivesMet >= 20 },
+  { id: 'promo1',   name: 'Ascendido',            desc: 'Tu primer ascenso.',               mult: 2,  test: (s) => s.stats.promotions >= 1 },
+  { id: 'promo4',   name: 'Escalando',            desc: '4 ascensos.',                      mult: 5,  test: (s) => s.stats.promotions >= 4 },
+  { id: 'top',      name: 'Despacho con ventana', desc: 'Llega a Dirección.',               mult: 10, test: (s) => s.rank >= 7 },
+  { id: 'life2',    name: 'Segunda oportunidad',  desc: 'Empieza tu segunda vida laboral.', mult: 3,  test: (s) => s.stats.lives >= 2 },
+  { id: 'jail1',    name: 'Fichado',              desc: 'Acaba en el calabozo por moroso.', mult: 2,  test: (s) => s.stats.calabozos >= 1 },
+  { id: 'fired1',   name: 'RR.HH. te saluda',     desc: 'Que te despidan una vez.',         mult: 2,  test: (s) => s.stats.despidos >= 1 },
+  { id: 'quit1',    name: 'Portazo digno',        desc: 'Dimite antes de que te echen.',    mult: 2,  test: (s) => s.stats.dimisiones >= 1 },
+  { id: 'xp1k',     name: 'Veterano',             desc: 'Acumula 1.000 de experiencia.',    mult: 5,  test: (s) => s.stats.xpEarned >= 1000 },
+  { id: 'tier9',    name: 'Forjador de soles',    desc: 'Instala una bombilla Estelar.',    mult: 8,  test: (s) => s.stats.maxTier >= 9 },
 ];

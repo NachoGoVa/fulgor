@@ -1,9 +1,24 @@
-# FULGOR v2 — «El operario» · propuesta de rediseño
+# FULGOR v2 — «El operario» · diseño
 
-> Estado: **propuesta**, pendiente de decisión del owner. No hay nada implementado.
+> Estado: **implementado** (Fase 1 + carrera + vidas + XP; ver §12 con las decisiones finales).
 > Origen: idea del owner (1-ago-2026) — replantear el juego como un trabajador de una
 > fábrica de luz, con días laborales, nómina por objetivos, roturas que se descuentan
 > del sueldo, cuenta bancaria y gastos de hogar/vida.
+
+## 0 · Decisiones del owner (1-ago-2026) — lo que cambió sobre la propuesta
+
+1. **Turno de 2,5 min** (no 6-8): «más dinámico». → `CORE.shift = 150`.
+2. **Deuda con interés Y sistema de vidas**: impago desbocado = calabozo, bajo rendimiento
+   sostenido = despido, y dimisión voluntaria. Cada final reinicia la vida conservando la
+   **experiencia (XP)**, canjeable por habilidades permanentes. *Esto convirtió el fracaso
+   en el prestigio del juego* — mejor que el diseño original.
+3. **Días encadenables sin límite**: sí.
+4. **Reemplazo total** del juego v1 (taggeado `v1` en git).
+5. **Mucho humor** → `src/ui/flavor.js` (Don Fulgencio, el Sr. Braulio, facturas con nombre).
+
+Cambios de balance tras simular carreras de 40 días (bots vago/activo/agresivo):
+`wearBase` 0.075→0.105 (el agresivo acababa con 0 roturas: el riesgo no mordía) y
+`promoteDays` +1 en todos los rangos (la carrera completa pasó de ~70 a ~95 min).
 
 ---
 

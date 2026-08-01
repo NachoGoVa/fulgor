@@ -147,7 +147,7 @@ export function frame(s, st = stats(s)) {
       }
       // Un zócalo vacío se repone con una bombilla de SU MISMO nivel.
       const cost = TIERS[sk.tier].cost;
-      p.lamp.classList.toggle('can-buy', s.money >= cost);
+      p.lamp.classList.toggle('can-buy', s.bank >= cost);
       const label = cost ? `Reponer · ${fmt(cost)} €` : 'Pulsa para reponer';
       if (p._o !== label) { p._o = label; p.out.textContent = label; }
       continue;
@@ -190,7 +190,7 @@ export function frame(s, st = stats(s)) {
 
     const cost = forzadoCost(sk.tier, sk.forzado);
     const maxed = sk.forzado >= CORE.forzadoMax;
-    p.forzar.classList.toggle('afford', !maxed && s.money >= cost);
+    p.forzar.classList.toggle('afford', !maxed && s.bank >= cost);
     p.forzar.classList.toggle('maxed', maxed);
     const label = maxed ? 'Máx' : `${fmt(cost)} €`;
     if (p.fz.textContent !== label) p.fz.textContent = label;

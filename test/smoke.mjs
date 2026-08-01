@@ -93,7 +93,14 @@ try {
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || 'eval falló');
     return r.result.value;
   };
-  await ev('localStorage.clear()');
+  // Partida, service worker Y cachés: si queda el SW de una ejecución anterior,
+  // sirve el juego viejo desde su caché y el smoke prueba un fantasma.
+  await ev(`(async () => {
+    localStorage.clear();
+    const regs = await (navigator.serviceWorker?.getRegistrations?.() || []);
+    for (const r of regs) await r.unregister();
+    for (const k of await caches.keys()) await caches.delete(k);
+  })()`);
   await send('Page.navigate', { url: `http://localhost:${PORT}/` });
   await sleep(2500);
   // Sólo nos interesan los errores del juego, no el 404 de la página de limpieza.
@@ -105,15 +112,25 @@ try {
     bulbs: document.querySelectorAll('.bulb-svg').length,
     tabs: document.querySelectorAll('.tab').length,
     rows: document.querySelectorAll('.row').length,
+    fichar: !!document.querySelector('.modal.locked [data-btn]'),
   }))()`);
   check(shape.sockets >= 1 && shape.bulbs >= 1, `la sala monta (${shape.sockets} zócalos)`);
   check(shape.tabs === 5, `las 5 pestañas están (${shape.tabs})`);
   check(shape.rows > 5, `el panel lista mejoras (${shape.rows} filas)`);
+  check(shape.fichar, 'la pantalla de fichar espera al operario');
 
-  const m1 = await ev(`document.querySelector('[data-k=money]').textContent`);
+  // Fichamos: arranca el turno, el reloj corre y la producción sube.
+  await ev(`document.querySelector('.modal.locked [data-btn]').click()`);
+  await sleep(400);
+  const objs = await ev(`document.querySelectorAll('#objbar .obj').length`);
+  check(objs >= 3, `los objetivos del día están a la vista (${objs} chips)`);
+  const c1 = await ev(`document.querySelector('[data-k=clock]').textContent`);
+  const p1 = await ev(`document.querySelector('[data-k=quota]').textContent`);
   await sleep(2000);
-  const m2 = await ev(`document.querySelector('[data-k=money]').textContent`);
-  check(m1 !== m2, `el bucle corre y el dinero sube (${m1} → ${m2})`);
+  const c2 = await ev(`document.querySelector('[data-k=clock]').textContent`);
+  const p2 = await ev(`document.querySelector('[data-k=quota]').textContent`);
+  check(c1 !== c2, `el reloj del turno corre (${c1} → ${c2})`);
+  check(p1 !== p2, `la producción del día sube (${p1} → ${p2})`);
 
   const clicked = await ev(`(() => {
     const l = document.querySelector('.lamp'), r = l.getBoundingClientRect();
@@ -135,7 +152,7 @@ try {
   })()`);
   check(surge.on && surge.sparks > 0, `pulsar rápido encadena sobrecarga (${surge.txt})`);
 
-  for (const t of ['luz', 'tienda', 'apagon', 'logros', 'mejoras']) {
+  for (const t of ['luz', 'tienda', 'carrera', 'logros', 'mejoras']) {
     const n = await ev(`(() => { document.querySelector('[data-tab=${t}]').click();
       return document.querySelector('.panel-body').childElementCount; })()`);
     await sleep(200);
