@@ -7,13 +7,23 @@ import {
   newState, step, click, stats, income, potential, startDay, endDay, resetLife,
   objectiveProgress, buyUpgrade, buyAutomation, buyBulb, repairSocket, upgradeSocket,
   upgradeAll, socketAction, buyForzado, buyConsumable, buySkill, skillCost,
-  upgradeCost, consumableCost, checkAchievements,
+  upgradeCost, consumableCost, checkAchievements, isBecario,
 } from '../src/engine/engine.js';
-import { CORE, TIERS, RANKS, XP, forzadoCost } from '../src/engine/config.js';
+import { CORE, TIERS, RANKS, XP, UPGRADES } from '../src/engine/config.js';
 import { fmt } from '../src/engine/format.js';
 
 const fresh = () => newState();
 const bulb = (s, i = 0) => s.sockets[i].bulb;
+/**
+ * Ficha ya como VETERANO: fuera del periodo de prácticas (donde nada se rompe)
+ * y con el permiso de sobrecarga comprado. Es el estado del juego "completo".
+ */
+function dayVet(s) {
+  s.upgrades.sobrecarga = 1;
+  s.day = CORE.becarioDays;   // startDay lo sube a becarioDays+1
+  return day(s);
+}
+
 /** Ficha y deja los objetivos imposibles de cumplir sin querer (deterministas). */
 function day(s) {
   startDay(s);
@@ -75,7 +85,7 @@ test('la producción del turno crece sola mientras la bombilla está encendida',
 });
 
 test('las tres bandas del click: limpio, bueno y sobrecarga', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   bulb(s).charge = 0.2;
   assert.equal(click(s, 0).band, 'relight');
   assert.equal(bulb(s).wear, 0);
@@ -89,7 +99,7 @@ test('las tres bandas del click: limpio, bueno y sobrecarga', () => {
 });
 
 test('sobrecargar multiplica la producción por (1 + stacks), hasta el tope', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   const cap = stats(s).surgeCap;
   const at = () => TIERS[0].base * stats(s).money;
   bulb(s).charge = 1; click(s, 0);
@@ -99,7 +109,7 @@ test('sobrecargar multiplica la producción por (1 + stacks), hasta el tope', ()
 });
 
 test('encadenar sobrecargas rompe la bombilla y la empresa lo apunta', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   let broke = false;
   for (let i = 0; i < 40 && !broke; i++) {
     if (!bulb(s)) break;
@@ -114,7 +124,7 @@ test('encadenar sobrecargas rompe la bombilla y la empresa lo apunta', () => {
 });
 
 test('si repones de tu bolsillo antes de fichar, la nómina no se entera', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   for (let i = 0; i < 40 && bulb(s); i++) { bulb(s).charge = 1; click(s, 0); }
   assert.ok(s.sockets[0].pending > 0);
   s.bank = 1000;
@@ -123,7 +133,7 @@ test('si repones de tu bolsillo antes de fichar, la nómina no se entera', () =>
 });
 
 test('el fusible salva la bombilla y no apunta nada', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   s.bag.fusible = 1;
   for (let i = 0; i < 40 && s.bag.fusible > 0; i++) { bulb(s).charge = 1; click(s, 0); }
   assert.equal(s.bag.fusible, 0);
@@ -132,7 +142,7 @@ test('el fusible salva la bombilla y no apunta nada', () => {
 });
 
 test('el repuesto repone gratis y limpia el parte', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   s.bag.repuesto = 1;
   for (let i = 0; i < 40 && !s.stats.breaks; i++) { bulb(s).charge = 1; click(s, 0); }
   assert.ok(bulb(s), 'repuesto colocado solo');
@@ -188,6 +198,7 @@ test('las roturas sin resolver se descuentan, con tope del 60% del bruto', () =>
 
 test('los objetivos cumplidos pagan prima', () => {
   const s = fresh();
+  s.upgrades.sobrecarga = 1;
   startDay(s);
   s.shift.objectives = [
     { type: 'surges', target: 1, met: false },
@@ -350,7 +361,7 @@ test('la empresa no te deja tocar maquinaria por encima de tu rango', () => {
 });
 
 test('por la noche, mantenimiento deja la fábrica como nueva', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   for (let i = 0; i < 40 && bulb(s); i++) { bulb(s).charge = 1; click(s, 0); }
   assert.equal(bulb(s), null, 'rota al acabar el día');
   s.shift.produced = s.quota;
@@ -519,7 +530,7 @@ test('la Chispa trabaja sola durante el turno y nunca arriesga', () => {
 });
 
 test('el técnico repone en turno pagando de tu banco', () => {
-  const s = day(fresh());
+  const s = dayVet(fresh());
   s.auto.tecnico = 5;
   s.bank = 1000;
   for (let i = 0; i < 40 && bulb(s); i++) { bulb(s).charge = 1; click(s, 0); }
@@ -584,4 +595,104 @@ test('BALANCE: la cuota del día 1 se cumple jugando activo, no mirando', () => 
   }
   const rGood = endDay(good);
   assert.ok(rGood.ratio >= 1, `jugando bien la cuota sale (${(rGood.ratio * 100).toFixed(0)}%)`);
+});
+
+
+// ============================================ el permiso de sobrecarga
+test('sin permiso, pulsar en la banda roja sólo desperdicia el click', () => {
+  const s = day(fresh());
+  assert.equal(stats(s).canSurge, false, 'de salida no está autorizado');
+  bulb(s).charge = 0.95;
+  const r = click(s, 0);
+  assert.equal(r.band, 'early', 'ni sobrecarga ni bonus: has pulsado pronto');
+  assert.equal(bulb(s).surge, 0);
+  assert.equal(bulb(s).wear, 0, 'tampoco desgasta: no ha pasado nada especial');
+  assert.equal(s.shift.surges, 0);
+});
+
+test('el permiso está bloqueado hasta Peón y luego abre la banda roja', () => {
+  const s = fresh();
+  s.bank = 1e6;
+  assert.equal(buyUpgrade(s, 'sobrecarga'), false, 'de Aprendiz, ni hablar');
+  s.rank = 1;
+  assert.ok(buyUpgrade(s, 'sobrecarga'));
+  assert.equal(stats(s).canSurge, true);
+  day(s);
+  bulb(s).charge = 0.95;
+  assert.equal(click(s, 0).band, 'surge', 'ahora sí dispara');
+});
+
+test('el permiso es de un solo uso: no se acumula', () => {
+  const s = fresh();
+  s.rank = 1; s.bank = 1e6;
+  buyUpgrade(s, 'sobrecarga');
+  assert.equal(buyUpgrade(s, 'sobrecarga'), false);
+  assert.equal(s.upgrades.sobrecarga, 1);
+});
+
+// ============================================ el periodo de prácticas
+test('en prácticas la bombilla reforzada aguanta lo que le eches', () => {
+  const s = fresh();
+  s.upgrades.sobrecarga = 1;
+  day(s);
+  assert.ok(isBecario(s), 'día 1: eres becario');
+  for (let i = 0; i < 60; i++) { bulb(s).charge = 1; click(s, 0); }
+  assert.ok(bulb(s), 'no se ha roto ni queriendo');
+  assert.equal(s.stats.breaks, 0);
+  assert.equal(s.sockets[0].pending, 0, 'y no hay nada que descontar');
+});
+
+test('pasado el periodo de prácticas, la bombilla ya revienta', () => {
+  const s = dayVet(fresh());
+  assert.equal(isBecario(s), false);
+  let broke = false;
+  for (let i = 0; i < 60 && !broke; i++) {
+    if (!bulb(s)) break;
+    bulb(s).charge = 1;
+    broke = click(s, 0).broke;
+  }
+  assert.ok(broke, 'se acabó la red de seguridad');
+});
+
+test('el periodo de prácticas dura lo que dice la configuración', () => {
+  const s = fresh();
+  s.day = CORE.becarioDays;
+  assert.ok(isBecario(s), 'el último día aún cuenta');
+  s.day = CORE.becarioDays + 1;
+  assert.equal(isBecario(s), false);
+});
+
+// ============================================ el balance del arranque
+test('BALANCE: la cuota del día 1 exige jugar, no vale con reencender a lo loco', () => {
+  const run = (style) => {
+    const s = fresh();
+    day(s);
+    while (s.shift.active) {
+      step(s, 0.05);
+      const b = bulb(s);
+      if (!b) continue;
+      if (style === 'casual' && b.charge <= 0.5) click(s, 0);
+      if (style === 'bueno' && b.charge <= CORE.sweetLo + 0.05 && b.charge > 0.1) click(s, 0);
+    }
+    return endDay(s);
+  };
+  const idle = run('idle'), casual = run('casual'), bueno = run('bueno');
+  assert.ok(idle.ratio < 0.2, `mirar no produce (${(idle.ratio * 100).toFixed(0)}%)`);
+  assert.ok(casual.ratio < 1, `reencender sin criterio NO basta (${(casual.ratio * 100).toFixed(0)}%)`);
+  assert.ok(bueno.ratio >= 1, `jugar la banda buena sí cumple (${(bueno.ratio * 100).toFixed(0)}%)`);
+  assert.ok(bueno.ratio < 2.2, `pero sin pasarse de rosca (${(bueno.ratio * 100).toFixed(0)}%)`);
+});
+
+test('BALANCE: el día 1 no deja el bolsillo lleno', () => {
+  const s = fresh();
+  day(s);
+  while (s.shift.active) {
+    step(s, 0.05);
+    const b = bulb(s);
+    if (b && b.charge <= CORE.sweetLo + 0.05 && b.charge > 0.1) click(s, 0);
+  }
+  endDay(s);
+  const masBarata = Math.min(...UPGRADES.filter((u) => !u.minRank).map((u) => u.base));
+  assert.ok(s.bank < masBarata * 2,
+    `tras el día 1 no debe alcanzar para dos mejoras (banco ${s.bank.toFixed(0)} €, la más barata ${masBarata} €)`);
 });

@@ -11,7 +11,7 @@
 //   cost  = lo que cuesta instalar ese nivel (del banco del jugador)
 export const TIERS = [
   { id: 'incandescente', name: 'Incandescente', base: 1,    decay: 0.167, cost: 25,    glow: '#FFB347', core: '#FFF0C2', rim: '#FF8A2B' },
-  { id: 'halogena',      name: 'Halógena',      base: 2.4,  decay: 0.147, cost: 70,    glow: '#FFD98A', core: '#FFFBE8', rim: '#FFA92E' },
+  { id: 'halogena',      name: 'Halógena',      base: 2.4,  decay: 0.147, cost: 130,   glow: '#FFD98A', core: '#FFFBE8', rim: '#FFA92E' },
   { id: 'fluorescente',  name: 'Fluorescente',  base: 5.8,  decay: 0.130, cost: 200,   glow: '#9FF5D8', core: '#EAFFF8', rim: '#2FD6A5' },
   { id: 'led',           name: 'LED',           base: 14,   decay: 0.114, cost: 480,   glow: '#7FD4FF', core: '#E9F8FF', rim: '#2A9BE8' },
   { id: 'xenon',         name: 'Xenón',         base: 33,   decay: 0.100, cost: 1100,  glow: '#C7B8FF', core: '#F3EFFF', rim: '#7A5CF0' },
@@ -67,6 +67,10 @@ export const CORE = {
   jailDebt: 2.0,     // calabozo si la deuda supera 2 alquileres
   fireRatio: 0.5,    // despido si produces menos del 50% de la cuota…
   fireDays: 3,       // …3 días seguidos
+
+  // el periodo de prácticas: los primeros días la empresa te pone una bombilla
+  // reforzada que NO revienta. Se aprende el ritmo sin castigo; al acabar, aviso.
+  becarioDays: 5,
 };
 
 // El forzado se paga según la maquinaria del zócalo.
@@ -79,29 +83,35 @@ export const forzadoCost = (tier, level) =>
 // sockets/maxTier = lo que la empresa te deja tocar
 // promoteDays = días cumpliendo la cuota (no seguidos) para el ascenso
 export const RANKS = [
-  { id: 'aprendiz',   name: 'Aprendiz',       mote: 'el chaval de las bombillas', salary: 40,    quota: 26,    sockets: 1,  maxTier: 1, promoteDays: 3 },
-  { id: 'peon',       name: 'Peón',           mote: 'ya te dejan tocar dos',      salary: 95,    quota: 84,    sockets: 2,  maxTier: 2, promoteDays: 4 },
-  { id: 'oficial',    name: 'Oficial',        mote: 'con taquilla propia',        salary: 220,   quota: 260,   sockets: 3,  maxTier: 3, promoteDays: 4 },
-  { id: 'tecnico',    name: 'Técnico',        mote: 'de filamentos y sus cosas',  salary: 500,   quota: 760,   sockets: 4,  maxTier: 4, promoteDays: 5 },
-  { id: 'encargado',  name: 'Encargado',      mote: 'con llavero y todo',         salary: 1150,  quota: 2400,  sockets: 6,  maxTier: 5, promoteDays: 6 },
-  { id: 'jefeturno',  name: 'Jefe de Turno',  mote: 'Don Fulgencio te saluda',    salary: 2600,  quota: 8400,  sockets: 8,  maxTier: 7, promoteDays: 7 },
-  { id: 'jefeplanta', name: 'Jefe de Planta', mote: 'tu firma ya vale algo',      salary: 6000,  quota: 26000, sockets: 10, maxTier: 8, promoteDays: 8 },
-  { id: 'direccion',  name: 'Dirección',      mote: 'despacho con ventana',       salary: 14000, quota: 80000, sockets: 12, maxTier: 9, promoteDays: 9999 },
+  { id: 'aprendiz',   name: 'Aprendiz',       mote: 'el chaval de las bombillas', salary: 40,    quota: 46,    sockets: 1,  maxTier: 1, promoteDays: 3 },
+  { id: 'peon',       name: 'Peón',           mote: 'ya te dejan tocar dos',      salary: 95,    quota: 150,    sockets: 2,  maxTier: 2, promoteDays: 4 },
+  { id: 'oficial',    name: 'Oficial',        mote: 'con taquilla propia',        salary: 220,   quota: 460,   sockets: 3,  maxTier: 3, promoteDays: 4 },
+  { id: 'tecnico',    name: 'Técnico',        mote: 'de filamentos y sus cosas',  salary: 500,   quota: 1350,   sockets: 4,  maxTier: 4, promoteDays: 5 },
+  { id: 'encargado',  name: 'Encargado',      mote: 'con llavero y todo',         salary: 1150,  quota: 4300,  sockets: 6,  maxTier: 5, promoteDays: 6 },
+  { id: 'jefeturno',  name: 'Jefe de Turno',  mote: 'Don Fulgencio te saluda',    salary: 2600,  quota: 15000,  sockets: 8,  maxTier: 7, promoteDays: 7 },
+  { id: 'jefeplanta', name: 'Jefe de Planta', mote: 'tu firma ya vale algo',      salary: 6000,  quota: 46000, sockets: 10, maxTier: 8, promoteDays: 8 },
+  { id: 'direccion',  name: 'Dirección',      mote: 'despacho con ventana',       salary: 14000, quota: 142000, sockets: 12, maxTier: 9, promoteDays: 9999 },
 ];
 
 // ---------------------------------------------------------------- mejoras €
 export const UPGRADES = [
-  { id: 'voltaje',    name: 'Voltaje',     desc: '+12% a toda la producción.',                 base: 25,  growth: 1.17, icon: 'bolt' },
+  // LA LLAVE DEL JUEGO. Sin esto, pulsar con la bombilla casi llena sólo la
+  // recarga (click desperdiciado). Comprarlo abre la banda de riesgo/recompensa
+  // — por eso está bloqueado hasta Peón: primero se aprende el ritmo básico.
+  { id: 'sobrecarga', name: 'Permiso de sobrecarga',
+    desc: 'Autoriza a forzar el voltaje: pulsar con el anillo en rojo dispara la producción… y quema la bombilla.',
+    base: 150, growth: 1, icon: 'surge', max: 1, minRank: 1 },
+  { id: 'voltaje',    name: 'Voltaje',     desc: '+12% a toda la producción.',                 base: 48,  growth: 1.18, icon: 'bolt' },
   { id: 'filamento',  name: 'Filamento',   desc: '-3% de velocidad de apagado.',               base: 40,  growth: 1.21, icon: 'wave' },
-  { id: 'pulso',      name: 'Pulso',       desc: '+25% a la producción de cada click.',        base: 20,  growth: 1.16, icon: 'tap' },
+  { id: 'pulso',      name: 'Pulso',       desc: '+25% a la producción de cada click.',        base: 38,  growth: 1.17, icon: 'tap' },
   { id: 'aislamiento',name: 'Aislamiento', desc: '-4% de desgaste al sobrecargar.',            base: 120, growth: 1.25, icon: 'shield' },
   { id: 'disipador',  name: 'Disipador',   desc: '+8% de velocidad de enfriado del desgaste.', base: 90,  growth: 1.22, icon: 'fan' },
   { id: 'reactor',    name: 'Reactor',     desc: '+0.35 s de duración de la sobrecarga.',      base: 300, growth: 1.30, icon: 'core' },
   { id: 'cristal',    name: 'Cristal',     desc: '+6% de resistencia antes de romperse.',      base: 200, growth: 1.26, icon: 'gem' },
   // La Jornada es la palanca gorda: el turno crece y, con él, sueldo, cuota y propina
   // (todo escala con turno/30). Pagas por trabajar más — muy de operario.
-  { id: 'jornada',    name: 'Jornada',     desc: '+6 s de turno, con subida de sueldo y cuota en proporción. Más horas, más nómina… y más propina.', base: 120, growth: 1.45, icon: 'clock', max: 20 },
-  { id: 'bote',       name: 'Bote de propinas', desc: '+5% de propina por nivel (la propina es un % del sueldo del día y va directa al banco).', base: 60, growth: 1.6, icon: 'coin', max: 8 },
+  { id: 'jornada',    name: 'Jornada',     desc: '+6 s de turno, con subida de sueldo y cuota en proporción. Más horas, más nómina… y más propina.', base: 190, growth: 1.45, icon: 'clock', max: 20 },
+  { id: 'bote',       name: 'Bote de propinas', desc: '+5% de propina por nivel (la propina es un % del sueldo del día y va directa al banco).', base: 95, growth: 1.6, icon: 'coin', max: 8 },
 ];
 
 // ---------------------------------------------------------------- automatismos €

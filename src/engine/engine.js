@@ -102,6 +102,7 @@ export function stats(s) {
     surgeTime: CORE.surgeTime + u.reactor * 0.35,
     maxWear: 1 + u.cristal * 0.06,
     surgeCap: CORE.surgeCap + k.ojoclinico,
+    canSurge: u.sobrecarga > 0,   // sin el permiso, la banda roja no hace nada especial
     shiftLen: CORE.shift + u.jornada * 6 + k.madrugador * 12,
     // La jornada escala TODO el día: sueldo, cuota y propina van en proporción
     // al turno. Trabajar más horas paga más… y exige más.
@@ -411,7 +412,12 @@ export function click(s, i, auto = false) {
                Math.pow(CORE.forzadoOut, sk.forzado) * st.money;
 
   let band, gain, broke = false;
-  if (c >= CORE.surgeLo) {
+  if (c >= CORE.surgeLo && !st.canSurge) {
+    // Sin permiso de sobrecarga, pulsar tan pronto sólo desperdicia el click:
+    // la recargas sin sacarle nada. Es la lección de ritmo del principio.
+    band = 'early';
+    gain = base;
+  } else if (c >= CORE.surgeLo) {
     band = 'surge';
     b.surge = Math.min(st.surgeCap, b.surge + 1);
     b.surgeT = st.surgeTime;
@@ -443,8 +449,20 @@ export function click(s, i, auto = false) {
   return { band, gain, stacks: b.surge, broke };
 }
 
+/** ¿Sigues en prácticas? La empresa te pone bombilla reforzada, no revienta. */
+export const isBecario = (s) => s.day <= CORE.becarioDays;
+
 function breakBulb(s, i, st) {
   const sk = s.sockets[i];
+  // Periodo de prácticas: la reforzada aguanta lo que le eches. Aprendes el
+  // ritmo sin que te cueste la nómina.
+  if (isBecario(s)) {
+    sk.bulb.wear = 0;
+    sk.bulb.surge = 0;
+    sk.bulb.surgeT = 0;
+    emit(s, 'protected', { i });
+    return false;
+  }
   if (s.bag.fusible > 0) {
     s.bag.fusible--;
     sk.bulb.wear = 0;
@@ -498,9 +516,12 @@ const inDebt = (s) => s.debt > 0;
 
 export const upgradeCost = (def, level) => def.base * Math.pow(def.growth, level);
 
+/** Algunas mejoras (el permiso de sobrecarga) exigen categoría profesional. */
+export const upgradeLocked = (s, def) => def.minRank != null && s.rank < def.minRank;
+
 export function buyUpgrade(s, id) {
   const def = UPG[id];
-  if (inDebt(s)) return false;
+  if (inDebt(s) || upgradeLocked(s, def)) return false;
   if (def.max != null && s.upgrades[id] >= def.max) return false;
   const cost = upgradeCost(def, s.upgrades[id]);
   if (s.bank < cost) return false;

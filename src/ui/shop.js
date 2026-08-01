@@ -6,7 +6,8 @@ import {
   TIERS, CORE, RANKS, UPGRADES, AUTOMATION, CONSUMABLES, SKILLS, ACHIEVEMENTS,
 } from '../engine/config.js';
 import {
-  stats, upgradeCost, consumableCost, skillCost, skillMax, socketAction, UPG, AUT, SKL,
+  stats, upgradeCost, consumableCost, skillCost, skillMax, socketAction,
+  upgradeLocked, isBecario, UPG, AUT, SKL,
 } from '../engine/engine.js';
 import { fmt, money, pct } from '../engine/format.js';
 import { icon } from './art.js';
@@ -117,6 +118,13 @@ function mejorasData(s) {
   for (const u of UPGRADES) {
     const lvl = s.upgrades[u.id];
     const top = u.max != null && lvl >= u.max;
+    const locked = upgradeLocked(s, u);
+    if (locked) {
+      d[u.id] = { cost: null, blocked: true, lvl: RANKS[u.minRank].name + ' o superior',
+                  label: 'BLOQUEADA',
+                  detail: `Necesitas ser <b>${RANKS[u.minRank].name}</b>. Primero, el ritmo básico.` };
+      continue;
+    }
     const { total, count } = bulk === 1
       ? { total: upgradeCost(u, lvl), count: 1 }
       : bulkCost(u, lvl, s.bank, bulk === 10 ? 10 : 'max');
@@ -150,6 +158,8 @@ function effectText(id, s, st) {
     case 'reactor':    return `Sobrecarga de <b>${st.surgeTime.toFixed(2)} s</b>`;
     case 'cristal':    return `Aguanta <b>x${st.maxWear.toFixed(2)}</b> de desgaste`;
     case 'jornada':    return `Turno de <b>${st.shiftLen} s</b> · sueldo y cuota <b>x${st.jornadaMult.toFixed(2)}</b>`;
+    case 'sobrecarga': return l ? 'Autorizado: la banda roja ya dispara la producción'
+                                : 'Sin permiso, pulsar en rojo sólo recarga (click desperdiciado)';
     case 'bote':       return `Propina del <b>${pct(st.tipRate, 0)}</b> del sueldo al superar la cuota`;
     default: return '';
   }

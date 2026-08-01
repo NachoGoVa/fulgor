@@ -2,7 +2,7 @@
 // atributo a atributo: sin reconciliación, sin recrear nodos en cada frame.
 
 import { TIERS, CORE, forzadoCost } from '../engine/config.js';
-import { stats, socketOutput } from '../engine/engine.js';
+import { stats, socketOutput, isBecario } from '../engine/engine.js';
 import { bulbSvg, brokenSvg, emptySvg, icon } from './art.js';
 import { fmt } from '../engine/format.js';
 
@@ -98,6 +98,7 @@ export function build(s) {
         ${ringsSvg()}
         ${art}
         <span class="stack">x2</span>
+        <span class="becario" title="Bombilla reforzada de prácticas: no se rompe">PRÁCTICAS</span>
       </button>
       <div class="plate">
         <span class="pname">${sk.tier + 1}· ${t.name}</span>
@@ -131,6 +132,7 @@ export function build(s) {
 /** Actualización por frame. Todo aquí debe ser barato: se ejecuta a 60 fps. */
 export function frame(s, st = stats(s)) {
   let lit = 0;
+  const becario = isBecario(s);
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i], sk = s.sockets[i];
     if (!p || !sk) continue;
@@ -157,7 +159,7 @@ export function frame(s, st = stats(s)) {
     lit += c;
 
     // Halo: la luz que emite. No usamos filtros SVG (caros), sólo opacidad.
-    p.halo.style.opacity = (0.12 + 0.88 * c) * (b.surge ? 1.35 : 1);
+    p.halo.style.opacity = (0.10 + 0.64 * c) * (b.surge ? 1.5 : 1);
     p.core.style.opacity = 0.18 + 0.82 * c;
 
     p.ringC.style.strokeDashoffset = C_CHARGE * (1 - c);
@@ -171,7 +173,11 @@ export function frame(s, st = stats(s)) {
       p.cracks[k].style.opacity = w > at ? Math.min(1, (w - at) / 0.2) : 0;
     }
 
-    const state = b.surge ? 2 : (c >= CORE.surgeLo ? 1 : 0);
+    p.el.classList.toggle('practicas', becario);
+    // Sin permiso de sobrecarga, la banda roja no es una oportunidad: es un aviso
+    // de «aún no». Se apaga el resalte para no invitar a pulsar en balde.
+    p.el.classList.toggle('nosurge', !st.canSurge);
+    const state = b.surge ? 2 : (c >= CORE.surgeLo && st.canSurge ? 1 : 0);
     const crit = w > 0.75;
     if (p._s !== state * 2 + (crit ? 1 : 0)) {
       p._s = state * 2 + (crit ? 1 : 0);

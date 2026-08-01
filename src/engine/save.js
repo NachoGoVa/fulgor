@@ -5,7 +5,7 @@ import { newState } from './engine.js';
 
 // v4: jornada de 30 s con escalado de sueldo/cuota, propina y cierre de día
 // idempotente. Subir la versión descarta las partidas viejas en vez de migrarlas.
-const KEY = 'fulgor.save.v4';
+const KEY = 'fulgor.save.v5';
 const EVERY = 3000;   // en móvil, pagehide no siempre llega: mejor perder poco
 
 let pending = null;

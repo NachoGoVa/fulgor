@@ -21,11 +21,19 @@ al sueldo y no a la cuota para que no explote en rangos altos; la simulación la
 ingreso total). De tu **banco** salen las facturas (comida diaria, alquiler cada 5 días), la maquinaria
 y el economato.
 
-El turno es el corazón de v1, intacto: cada bombilla tiene carga que decae, y la banda en la que pulsas
-lo decide todo — por debajo del 62% reencendido limpio, 62–85% banda buena (×1.5), **≥85% SOBRECARGA**
+El turno es el corazón de v1: cada bombilla tiene carga que decae, y la banda en la que pulsas lo
+decide todo — por debajo del 62% reencendido limpio, 62–85% banda buena (×1.5), **≥85% SOBRECARGA**
 (×2 acumulable, ×3 al click) que desgasta de verdad. Encadenar sobrecargas sin respiro **rompe la
 bombilla**, y las roturas que no repongas antes de fichar la salida **se descuentan de la nómina**
 (tope: 60% del bruto).
+
+**La curva de aprendizaje está escalonada a propósito:**
+1. **Días 1-5, periodo de prácticas.** La empresa te presta una bombilla reforzada que **no revienta**
+   (`isBecario`). Aprendes el ritmo sin castigo; el día 6, Don Fulgencio te la retira con su gracia.
+2. **La sobrecarga está BLOQUEADA de salida.** Es una mejora (`sobrecarga`, `minRank: 1`) que hay que
+   comprar y que exige ser Peón. Sin ella, pulsar en la banda roja devuelve la banda `early`: recarga
+   sin bonus ni desgaste — «has pulsado pronto». El anillo rojo se atenúa (`.socket.nosurge`) para no
+   invitar a pulsar en balde. Así el juego enseña primero el pulso y luego el riesgo.
 
 ```
 nómina = sueldo × min(1, producción/cuota) + primas de objetivos (20% c/u)
@@ -70,7 +78,11 @@ src/engine/    ← simulación pura, sin DOM. Es lo que prueban los tests.
   save.js        localStorage, un solo blob con debounce de 3 s (clave v4)
 src/ui/        ← todo lo que toca el DOM
   art.js         SVG a mano: 10 bombillas, rotura, zócalo vacío, iconos, logo
-  flavor.js      EL HUMOR: Don Fulgencio, el Sr. Braulio, facturas con nombre
+  characters.js  LOS RETRATOS: 6 caras SVG (jefe, RR.HH., veterano, becaria,
+                 casero, tú) × 5 humores. Una sola geometría por cara; cejas y
+                 boca son lo único que cambia con el humor
+  flavor.js      EL GUION: cada réplica es [quién, texto, humor], así que el
+                 diálogo sabe qué cara ponerle
   scene.js       la sala: construye una vez y actualiza atributos por frame
   shop.js        panel: Mejoras · Bombillas · Economato · Carrera · Logros
   hud.js         banco, cuota, reloj del turno, XP
@@ -92,16 +104,22 @@ parado (no hay sistema offline — todo se cuelga del día de juego, no del relo
 `test/` cubre la lógica; el *balance* se calibró simulando carreras enteras con tres bots (vago,
 activo, agresivo) sobre el motor puro. Resultados que definen la experiencia:
 
-| Perfil | 40 días simulados |
+| Perfil | Resultado |
 |---|---|
-| Vago (no toca nada) | Despido cada 3 días, 14 vidas, ~626 XP por finiquitos — el bucle de fracaso alimenta el prestigio |
-| Activo (banda buena) | Dirección en el día 37 (~95 min de juego), sin sobresaltos |
-| Agresivo (sobrecarga con cabeza) | Igual de rápido, **pero solo si para cuando el desgaste va alto** |
+| Vago (no toca nada) | Despido cada 3 días — el bucle de fracaso alimenta el prestigio vía finiquitos |
+| Casual (reencender sin criterio) | **No llega a la cuota**: hay que jugar la banda, no sólo pulsar |
+| Bueno (banda buena) | Cumple con margen sano (~1.2× la cuota) |
+| Agresivo (sobrecarga con cabeza) | Más rápido, **pero solo si para cuando el desgaste va alto** |
 
 Decisiones que salieron de la simulación: `wearBase` 0.075→**0.105** (con el valor viejo, un agresivo
-acababa 40 días con CERO roturas — el riesgo no mordía) y `promoteDays` +1 en todos los rangos (la
-carrera duraba 70 min; ahora ~95). La cuota del día 1 **no** se cumple mirando: hay que jugar (test
-«BALANCE» lo fija).
+acababa 40 días con CERO roturas — el riesgo no mordía), `promoteDays` +1 por rango, y el rebalanceo
+del arranque tras el segundo informe de juego: las cuotas de todos los rangos **×1.75** y las primeras
+mejoras más caras, porque jugando casual se superaba la cuota un 38% y el día 1 dejaba 40 € (dos
+mejoras) en el bolsillo.
+
+Dos tests fijan el arranque para que no se vuelva a escapar: **«la cuota del día 1 exige jugar»**
+(idle <20%, casual <100%, bueno ≥100% y <220%) y **«el día 1 no deja el bolsillo lleno»** (tras el
+primer día no debe alcanzar para dos mejoras).
 
 ## Estilo visual
 
@@ -109,7 +127,15 @@ Neón sobre taller a oscuras; las bombillas son la única luz de la pantalla (`-
 cargas: si todo se apaga, el juego se queda negro). Paleta en `:root`; cada nivel aporta su terna
 `--glow/--core/--rim`. Sin filtros SVG animados: halo = radial-gradient + `mix-blend-mode:screen`;
 anillos = `stroke-dasharray`. **El humor es parte del estilo**: todo texto de sistema pasa por
-`flavor.js` (el jefe comenta la nómina, las facturas tienen nombre, el calabozo tiene guion).
+`flavor.js`, y sale por boca de un personaje con su retrato (`characters.js`): Don Fulgencio comenta
+la nómina cada día, Paco te da consejos de veterano, Vane sufre contigo, Charo de RR.HH. sonríe
+mientras te despide y el Sr. Braulio llama por el alquiler.
+
+**Restyling v3 (nave industrial):** chapa (`--plate`: degradado + brillo superior), viga con remaches
+sobre la escena, cinta de peligro (`--hazard`) en los ascensos, botones con relieve que se hunden al
+pulsar, y objetivos táctiles de 44 px. La hoja es **mobile-first**: se diseña para el pulgar y se
+ensancha en `560px` (más aire), `940px` (panel lateral) y `1500px`; hay además un caso para móvil
+apaisado (`max-height:520px`).
 
 ## Cache local (offline)
 

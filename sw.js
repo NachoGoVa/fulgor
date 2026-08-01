@@ -9,14 +9,14 @@
  *
  * ⚠️ Al desplegar cambios hay que subir VERSION: es lo que borra la caché anterior.
  */
-const VERSION = 'fulgor-v4';
+const VERSION = 'fulgor-v5';
 
 const ASSETS = [
   './', './index.html', './src/styles.css', './src/main.js',
   './src/engine/config.js', './src/engine/engine.js',
   './src/engine/format.js', './src/engine/save.js',
   './src/ui/art.js', './src/ui/scene.js', './src/ui/shop.js',
-  './src/ui/hud.js', './src/ui/fx.js', './src/ui/flavor.js',
+  './src/ui/hud.js', './src/ui/fx.js', './src/ui/flavor.js', './src/ui/characters.js',
 ];
 
 self.addEventListener('install', (ev) => {

@@ -140,17 +140,20 @@ try {
   })()`);
   check(clicked > 0, 'el click suelta número flotante');
 
+  // Sin el permiso de sobrecarga (bloqueado hasta Peón), machacar el click NO
+  // debe disparar nada: es la lección de ritmo del principio.
   const surge = await ev(`(() => {
     const l = document.querySelector('.lamp'), r = l.getBoundingClientRect();
     const o = {bubbles:true, cancelable:true, clientX:r.left+r.width/2, clientY:r.top+r.height/2};
-    for (let i=0;i<3;i++) l.dispatchEvent(new PointerEvent('pointerdown', o));
+    for (let i=0;i<4;i++) l.dispatchEvent(new PointerEvent('pointerdown', o));
     return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => res({
       on: document.querySelector('.stack')?.classList.contains('on'),
-      txt: document.querySelector('.stack')?.textContent,
-      sparks: document.querySelectorAll('.fx-spark').length,
+      nosurge: document.querySelector('.socket')?.classList.contains('nosurge'),
+      practicas: document.querySelector('.socket')?.classList.contains('practicas'),
     }))));
   })()`);
-  check(surge.on && surge.sparks > 0, `pulsar rápido encadena sobrecarga (${surge.txt})`);
+  check(!surge.on && surge.nosurge, 'sin permiso, machacar el click no sobrecarga');
+  check(surge.practicas, 'y la bombilla luce el distintivo de prácticas');
 
   for (const t of ['luz', 'tienda', 'carrera', 'logros', 'mejoras']) {
     const n = await ev(`(() => { document.querySelector('[data-tab=${t}]').click();
