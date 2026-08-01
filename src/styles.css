@@ -1,0 +1,523 @@
+/* FULGOR — neón sobre taller a oscuras.
+   Idea rectora: las bombillas son la única fuente de luz de la pantalla.
+   Si dejas que se apaguen todas, el juego literalmente se queda negro. */
+
+:root {
+  --bg0:#05070E; --bg1:#0B1020; --surface:#111A2E; --surface2:#16203A;
+  --line:#22304F; --line2:#2E3F66;
+  --text:#E9EFFF; --dim:#8496BC; --dim2:#5D6E96;
+  --gold:#FFC94A; --money:#FFD86B;
+  --surge:#FF4D9D; --sweet:#4ADE9B; --danger:#FF5470; --cool:#3DF5FF;
+  --r:14px; --r-sm:9px;
+  --font:'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,Inter,sans-serif;
+  --mono:'Cascadia Mono',ui-monospace,'SF Mono',Consolas,monospace;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+html,body { height:100%; }
+body {
+  font-family:var(--font); color:var(--text); background:var(--bg0);
+  overflow:hidden; -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+}
+button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+/* Todos los iconos son trazo, nunca relleno. */
+.ic {
+  width:16px; height:16px; flex-shrink:0;
+  fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+kbd {
+  font-family:var(--mono); font-size:.82em; background:var(--surface2);
+  border:1px solid var(--line2); border-bottom-width:2px; border-radius:5px; padding:1px 5px;
+}
+.c-surge { color:var(--surge); }
+.sp { color:var(--gold); }
+
+/* ------------------------------------------------------------ estructura */
+#app {
+  height:100dvh; overflow:hidden; display:grid;
+  grid-template-columns:1fr minmax(340px,25vw);
+  grid-template-rows:auto 1fr;
+  grid-template-areas:'hud hud' 'stage panel';
+  background:
+    radial-gradient(120% 80% at 50% -10%, #14203C 0%, transparent 60%),
+    linear-gradient(180deg,var(--bg1),var(--bg0));
+}
+
+/* ------------------------------------------------------------------ HUD */
+#hud {
+  grid-area:hud; display:flex; align-items:center; gap:22px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  padding-top:max(10px,env(safe-area-inset-top));
+  border-bottom:1px solid var(--line);
+  background:rgba(8,12,24,.82); backdrop-filter:blur(12px);
+  position:relative; z-index:20;
+}
+.brand { display:flex; align-items:center; gap:9px; flex-shrink:0; }
+.brand h1 {
+  font-size:19px; letter-spacing:.19em; font-weight:800;
+  background:linear-gradient(180deg,#FFF3C4,var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.logo { width:30px; height:30px; }
+.readouts { display:flex; gap:8px; flex:1; flex-wrap:wrap; }
+.ro {
+  display:flex; flex-direction:column; gap:1px; padding:5px 13px;
+  border-radius:var(--r-sm); background:var(--surface); border:1px solid var(--line);
+  min-width:104px;
+}
+.ro-lbl {
+  font-size:9.5px; text-transform:uppercase; letter-spacing:.12em; color:var(--dim2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ro-val { font-size:17px; font-variant-numeric:tabular-nums; line-height:1.15; }
+.ro-sub { font-size:10px; color:var(--dim2); }
+.ro-sub.over { color:var(--surge); font-weight:700; }
+.ro.hide { display:none; }
+.ro.money { border-color:#4A3B12; background:linear-gradient(180deg,#1E1806,var(--surface)); }
+.ro.money .ro-val { color:var(--money); }
+.ro.spark .ro-val { color:var(--cool); }
+.ro.mult .ro-val { color:var(--sweet); }
+.ro-val.pop { animation:pop .35s ease-out; }
+@keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.16); filter:brightness(1.5)} 100%{transform:scale(1)} }
+
+.buffs { display:flex; gap:6px; }
+.buff {
+  display:flex; align-items:center; gap:5px; padding:4px 9px; font-size:11px;
+  border-radius:99px; background:rgba(255,77,157,.13); border:1px solid var(--surge);
+  color:#FFC2DE; animation:buffIn .3s;
+}
+.buff b { font-variant-numeric:tabular-nums; }
+.buff .ic { width:13px; height:13px; }
+@keyframes buffIn { from{transform:translateY(-8px); opacity:0} }
+
+/* ---------------------------------------------------------------- escena */
+#stage {
+  grid-area:stage; position:relative; overflow:hidden;
+  display:flex; flex-direction:column; min-height:0;
+}
+.rail {
+  height:7px; flex-shrink:0;
+  background:linear-gradient(180deg,#1B2540,#0C1526);
+  border-bottom:1px solid #2A3A5E;
+  box-shadow:0 3px 14px rgba(0,0,0,.6);
+}
+#scene {
+  --ambient:0;
+  flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+  display:grid; align-content:start; justify-content:center;
+  /* Las columnas las calcula scene.js en píxeles (ver layout()): con pocos
+     zócalos las bombillas se ven grandes y encogen según crece la instalación. */
+  gap:6px 4px; padding:0 14px 14px;
+  position:relative;
+}
+/* La luz ambiental de la sala: la suma de todo lo que esté encendido. */
+#scene::before {
+  content:''; position:absolute; inset:-10%; pointer-events:none; z-index:0;
+  background:radial-gradient(60% 45% at 50% 22%, rgba(255,190,90,.16), transparent 70%);
+  opacity:var(--ambient); transition:opacity .25s linear;
+}
+.tip {
+  flex-shrink:0; text-align:center; font-size:11.5px; color:var(--dim2);
+  padding:8px 16px max(8px,env(safe-area-inset-bottom));
+  border-top:1px solid var(--line); background:rgba(6,9,18,.6);
+}
+.tip b { color:var(--dim); }
+
+/* ---------------------------------------------------------------- zócalo */
+.socket {
+  --glow:#FFB347; --core:#FFF0C2; --rim:#FF8A2B; --fz:0;
+  position:relative; z-index:1; display:flex; flex-direction:column; align-items:center;
+}
+.lamp {
+  position:relative; width:100%; aspect-ratio:120/170; display:block;
+  touch-action:manipulation; user-select:none; -webkit-user-select:none;
+}
+.lamp:focus-visible { outline:2px solid var(--cool); outline-offset:2px; border-radius:var(--r); }
+
+.halo {
+  position:absolute; left:50%; top:56.5%; width:180%; aspect-ratio:1;
+  transform:translate(-50%,-50%); pointer-events:none; opacity:0;
+  background:radial-gradient(circle closest-side,
+    var(--glow) 0%, color-mix(in srgb,var(--glow) 45%,transparent) 32%, transparent 72%);
+  mix-blend-mode:screen;
+}
+.bulb-svg, .rings { position:absolute; inset:0; width:100%; height:100%; }
+.bulb-svg { overflow:visible; }
+
+/* --- partes comunes de la bombilla --- */
+.wire { stroke:#2C3A5C; stroke-width:2.5; fill:none; }
+.cap { fill:#7C8BA8; stroke:#4A5A7A; stroke-width:1; }
+.cap-neck { fill:#5A6A8A; }
+.heatsink { fill:#4E5C78; stroke:#38455E; stroke-width:1; }
+.fins { stroke:#2B384E; stroke-width:1.4; fill:none; }
+
+.glass {
+  fill:color-mix(in srgb, var(--glow) 15%, rgba(180,205,255,.05));
+  stroke:var(--rim); stroke-width:2; stroke-opacity:.55;
+}
+.glass-shine { fill:none; stroke:rgba(255,255,255,.5); stroke-width:1; stroke-dasharray:14 90; }
+
+.core { opacity:.2; }
+.core-stroke { stroke:var(--core); stroke-width:2.4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.core-stroke.thin { stroke-width:1.3; opacity:.65; }   /* los hilos de soporte */
+.core-fill { fill:var(--core); }
+.core-tube {
+  stroke:var(--glow); stroke-width:11; fill:none;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+.arc { opacity:.85; }
+.tendril { stroke-width:1.6; opacity:.8; }
+.orbit { stroke-width:1.6; opacity:.5; }
+.ray { stroke-width:2; opacity:.75; }
+.spin { transform-origin:60px 96px; animation:spin 4s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.crack { stroke:#0A0E18; stroke-width:2.2; fill:none; opacity:0; stroke-linecap:round; }
+
+.broken .shard { fill:none; stroke:#6E7FA0; stroke-width:2; stroke-linejoin:round; }
+.broken .dust { stroke:#3B4A68; stroke-width:2; stroke-linecap:round; }
+.empty .socket-hole { fill:#0A0F1C; stroke:#3A4A6A; stroke-width:2; }
+.empty .plus, .broken .plus { stroke:#4A5C80; stroke-width:3; stroke-linecap:round; fill:none; }
+/* Un zócalo reventado tiene que pedir atención a gritos. */
+.lamp.is-empty.can-buy .broken .shard { stroke:#B9A05C; }
+.lamp.is-empty { opacity:.55; transition:opacity .2s; }
+.lamp.is-empty.can-buy { opacity:.9; }
+.lamp.is-empty.can-buy .plus { stroke:var(--gold); animation:breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity:.35; } }
+
+/* --- los anillos: carga fuera, desgaste dentro --- */
+.rings { pointer-events:none; overflow:visible; }
+.rings circle { fill:none; stroke-linecap:butt; }
+.ring-bg { stroke:rgba(255,255,255,.07); stroke-width:5; }
+.ring-sweet { stroke:var(--sweet); stroke-width:5; opacity:.3; }
+.ring-danger { stroke:var(--surge); stroke-width:5; opacity:.42; }
+.ring-charge { stroke:var(--glow); stroke-width:5; filter:drop-shadow(0 0 3px var(--glow)); }
+.ring-wear { stroke:var(--danger); stroke-width:3; opacity:.75; }
+
+/* La ventana de sobrecarga está abierta: que se note. */
+.socket.ready .ring-danger { opacity:1; animation:danger .55s ease-in-out infinite; }
+@keyframes danger { 50% { opacity:.35; stroke-width:7; } }
+.socket.surging .halo { animation:surgeGlow .45s ease-in-out infinite alternate; }
+@keyframes surgeGlow { to { filter:brightness(1.45) saturate(1.3); } }
+.socket.surging .ring-charge { stroke:var(--surge); filter:drop-shadow(0 0 7px var(--surge)); }
+.socket.critical .ring-wear { animation:danger .4s ease-in-out infinite; stroke-width:5; }
+.socket.critical .bulb-svg { animation:tremble .16s linear infinite; }
+@keyframes tremble { 25%{transform:translateX(.9px)} 75%{transform:translateX(-.9px)} }
+
+.stack {
+  position:absolute; top:6%; left:50%; transform:translateX(-50%) scale(.4);
+  font-size:15px; font-weight:800; color:#fff; opacity:0;
+  padding:2px 9px; border-radius:99px; background:var(--surge);
+  box-shadow:0 0 16px var(--surge); pointer-events:none;
+  font-variant-numeric:tabular-nums; transition:opacity .12s;
+}
+.stack.on { opacity:1; transform:translateX(-50%) scale(1); animation:stackPop .22s ease-out; }
+@keyframes stackPop { from { transform:translateX(-50%) scale(1.7); } }
+
+/* --- placa con el nombre y la producción --- */
+.plate {
+  display:flex; flex-direction:column; align-items:center; gap:0; margin-top:-6px;
+  font-size:10.5px; line-height:1.35;
+}
+.pname { color:var(--dim2); text-transform:uppercase; letter-spacing:.07em; font-size:9px; }
+.pout { color:var(--money); font-variant-numeric:tabular-nums; font-weight:600; }
+
+.forzar {
+  display:flex; align-items:center; gap:4px; margin-top:4px; padding:3px 9px;
+  font-size:10px; border-radius:99px; color:var(--dim2);
+  border:1px solid var(--line); background:var(--surface);
+  transition:.15s; font-variant-numeric:tabular-nums;
+}
+.forzar .ic { width:11px; height:11px; }
+.forzar.afford { color:var(--gold); border-color:#6A5518; background:#1C1607; }
+.forzar.afford:hover { background:#2A2109; box-shadow:0 0 12px rgba(255,201,74,.25); }
+.forzar.maxed { color:var(--sweet); border-color:#1E5138; }
+/* Sin bombilla no hay nada que forzar: se oculta pero se reserva el hueco
+   para que la rejilla no baile al romperse una. */
+.socket.vacio .forzar { visibility:hidden; }
+
+/* --- feedback del click --- */
+.socket.hit .bulb-svg { animation:hit .16s ease-out; }
+@keyframes hit { 50% { transform:scale(.93); } }
+.socket.hit-surge .bulb-svg { animation:hitSurge .3s cubic-bezier(.3,1.6,.5,1); }
+@keyframes hitSurge { 0%{transform:scale(.9)} 55%{transform:scale(1.13)} 100%{transform:scale(1)} }
+.socket.hit-break .bulb-svg { animation:hitBreak .4s ease-out; }
+@keyframes hitBreak { 0%{transform:scale(1.25); filter:brightness(3)} 100%{transform:scale(1)} }
+
+/* ---------------------------------------------------------------- panel */
+#panel {
+  grid-area:panel; display:flex; flex-direction:column; min-height:0;
+  border-left:1px solid var(--line); background:rgba(8,12,24,.7);
+}
+.tabs { display:flex; border-bottom:1px solid var(--line); flex-shrink:0; }
+.tab {
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:9px 2px; font-size:10px; color:var(--dim2);
+  border-bottom:2px solid transparent; transition:.15s; min-width:0;
+}
+.tab .ic { width:17px; height:17px; }
+.tab:hover { color:var(--dim); background:rgba(255,255,255,.03); }
+.tab.on { color:var(--gold); border-bottom-color:var(--gold); background:rgba(255,201,74,.06); }
+
+.panel-body {
+  flex:1; overflow-y:auto; overscroll-behavior:contain;
+  padding:10px 10px max(18px,env(safe-area-inset-bottom));
+}
+.sec {
+  font-size:10px; text-transform:uppercase; letter-spacing:.15em; color:var(--dim2);
+  margin:14px 2px 7px; font-weight:700;
+}
+.sec:first-child { margin-top:2px; }
+.hint { font-size:11.5px; color:var(--dim2); line-height:1.5; margin:0 2px 10px; }
+.hint b { color:var(--dim); }
+
+/* --- la escalera de niveles --- */
+.ladder { display:flex; flex-direction:column-reverse; gap:2px; margin-bottom:10px; }
+.rung {
+  display:grid; grid-template-columns:auto auto 1fr auto auto; gap:8px; align-items:center;
+  padding:5px 9px; border-radius:var(--r-sm); font-size:11.5px;
+  background:var(--surface); border:1px solid var(--line);
+}
+.rung i { width:9px; height:9px; border-radius:99px; background:var(--glow); opacity:.35; }
+.rung b { font-size:10px; color:var(--dim2); font-variant-numeric:tabular-nums; }
+.rung span { color:var(--dim); }
+.rung em { font-style:normal; font-size:10px; color:var(--dim2); font-variant-numeric:tabular-nums; }
+.rung u {
+  text-decoration:none; font-size:10px; font-weight:700; padding:1px 7px; border-radius:99px;
+  background:var(--glow); color:#10131C;
+}
+.rung.on { border-color:var(--glow); background:linear-gradient(90deg,rgba(255,255,255,.05),var(--surface)); }
+.rung.on i { opacity:1; box-shadow:0 0 8px var(--glow); }
+.rung.on span { color:var(--text); font-weight:600; }
+.rung.future { opacity:.42; }
+
+.rowbtns { margin-bottom:6px; }
+.big.alt { background:var(--surface2); border:1px solid var(--line2); color:var(--text); }
+.big.alt:hover { border-color:var(--gold); color:var(--gold); }
+
+.bulk { display:flex; align-items:center; gap:5px; margin-bottom:4px; font-size:11px; color:var(--dim2); }
+.bulk span { margin-right:auto; }
+.bk {
+  padding:3px 11px; border-radius:99px; font-size:11px; color:var(--dim);
+  border:1px solid var(--line); transition:.15s;
+}
+.bk.on { background:var(--gold); color:#1A1200; border-color:var(--gold); font-weight:700; }
+
+/* --- fila de compra --- */
+.row {
+  display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+  padding:9px 10px; margin-bottom:5px; border-radius:var(--r-sm);
+  background:var(--surface); border:1px solid var(--line); transition:.15s;
+}
+.row.afford { border-color:var(--line2); background:var(--surface2); }
+.row.maxed { opacity:.6; }
+.row-ic {
+  width:32px; height:32px; display:grid; place-items:center; border-radius:8px;
+  background:rgba(255,255,255,.05); color:var(--dim);
+}
+.row.afford .row-ic { color:var(--gold); background:rgba(255,201,74,.1); }
+.row-ic .ic { width:18px; height:18px; }
+.row-txt { min-width:0; }
+.row-top { display:flex; align-items:baseline; gap:7px; }
+.row-top b { font-size:13px; }
+.lvl { font-size:10px; color:var(--dim2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.row-txt p { font-size:11px; color:var(--dim2); line-height:1.4; margin:1px 0; }
+.row-detail { font-size:10.5px; color:var(--dim); margin-top:2px; }
+.row-detail b { color:var(--sweet); }
+.row-detail em { color:var(--dim2); font-style:normal; }
+
+.buy {
+  padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700;
+  background:var(--surface2); border:1px solid var(--line2); color:var(--dim2);
+  font-variant-numeric:tabular-nums; white-space:nowrap; transition:.15s;
+}
+.row.afford .buy { background:var(--gold); color:#1A1200; border-color:#FFE08A; }
+.row.afford .buy:hover { filter:brightness(1.12); box-shadow:0 0 16px rgba(255,201,74,.35); }
+.row.afford .buy:active { transform:translateY(1px); }
+.buy:disabled { cursor:not-allowed; }
+.row.pres.afford .buy { background:var(--cool); border-color:#9BFBFF; color:#00232A; }
+.row.pres.afford .row-ic { color:var(--cool); background:rgba(61,245,255,.1); }
+
+/* --- apagón --- */
+.apagon {
+  padding:13px; border-radius:var(--r); margin-bottom:6px;
+  background:linear-gradient(160deg,#1A1030,#0C1020);
+  border:1px solid #38265E;
+}
+.apagon.ready { border-color:var(--cool); box-shadow:0 0 26px rgba(61,245,255,.14); }
+.ap-head { display:flex; gap:10px; margin-bottom:10px; }
+.ap-head .ic { width:26px; height:26px; color:var(--cool); flex-shrink:0; }
+.ap-head b { font-size:14px; }
+.ap-head p { font-size:11.5px; color:var(--dim2); line-height:1.5; margin-top:3px; }
+.bar { height:6px; border-radius:99px; background:rgba(0,0,0,.45); overflow:hidden; margin-bottom:5px; }
+.bar i { display:block; height:100%; background:linear-gradient(90deg,var(--surge),var(--cool)); }
+.apagon small { font-size:10.5px; color:var(--dim2); display:block; margin-bottom:9px; }
+
+.big {
+  width:100%; padding:11px; border-radius:9px; font-weight:800; font-size:13px;
+  background:var(--cool); color:#00232A; transition:.15s;
+}
+.big:hover { filter:brightness(1.1); }
+.big.off { background:var(--surface2); color:var(--dim2); cursor:not-allowed; border:1px solid var(--line); }
+.ghost { padding:11px 18px; border-radius:9px; color:var(--dim); border:1px solid var(--line2); }
+
+/* --- logros y estadísticas --- */
+.ach-grid { display:flex; flex-direction:column; gap:4px; }
+.ach {
+  display:grid; grid-template-columns:auto 1fr auto; gap:9px; align-items:center;
+  padding:7px 9px; border-radius:var(--r-sm);
+  background:var(--surface); border:1px solid var(--line); opacity:.5;
+}
+.ach.on { opacity:1; border-color:#5A4715; background:linear-gradient(90deg,#1B1506,var(--surface)); }
+.ach .ic { width:16px; height:16px; color:var(--dim2); }
+.ach.on .ic { color:var(--gold); }
+.ach b { font-size:12px; display:block; }
+.ach span { font-size:10.5px; color:var(--dim2); }
+.ach em { font-size:11px; font-style:normal; color:var(--dim2); font-weight:700; }
+.ach.on em { color:var(--sweet); }
+
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.stats-grid div {
+  display:flex; flex-direction:column; padding:7px 9px; border-radius:var(--r-sm);
+  background:var(--surface); border:1px solid var(--line);
+}
+.stats-grid span { font-size:9.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--dim2); }
+.stats-grid b { font-size:13px; font-variant-numeric:tabular-nums; }
+.danger-zone { margin-top:22px; padding-top:14px; border-top:1px solid var(--line); }
+.danger-zone .big { background:transparent; border:1px solid #5A2030; color:var(--danger); cursor:pointer; }
+.danger-zone .big:hover { background:rgba(255,84,112,.1); }
+
+/* ------------------------------------------------------------ efectos */
+/* overflow:hidden para que una partícula cerca del borde no ensanche el layout. */
+#fx { position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden; }
+.float {
+  position:absolute; transform:translate(-50%,-50%); white-space:nowrap;
+  font-weight:800; font-size:15px; color:var(--money);
+  text-shadow:0 2px 10px rgba(0,0,0,.9); font-variant-numeric:tabular-nums;
+  animation:floatUp 1.05s cubic-bezier(.2,.7,.3,1) forwards;
+}
+.float.good { color:var(--sweet); font-size:17px; }
+.float.big  { color:#fff; font-size:21px; text-shadow:0 0 14px var(--surge),0 2px 8px #000; }
+.float.label{ color:var(--surge); font-size:12px; letter-spacing:.11em; }
+.float.bad  { color:var(--danger); font-size:17px; letter-spacing:.08em; }
+.float.save { color:var(--cool); font-size:14px; letter-spacing:.1em; }
+@keyframes floatUp {
+  0%   { opacity:0; transform:translate(-50%,-50%) scale(.65) rotate(0); }
+  18%  { opacity:1; transform:translate(-50%,-70%) scale(1.06) rotate(var(--rot)); }
+  100% { opacity:0; transform:translate(calc(-50% + var(--dx)),-190%) scale(.9) rotate(var(--rot)); }
+}
+
+/* ojo: nombre con prefijo a propósito — `.spark` a secas chocaba con el
+   marcador de Chispas del HUD (.ro.spark) y lo colapsaba a 5px. */
+.fx-spark {
+  position:absolute; width:5px; height:5px; border-radius:99px;
+  background:var(--gold); box-shadow:0 0 8px var(--gold);
+  animation:sparkOut var(--d) ease-out forwards;
+}
+.fx-spark.hot { background:var(--surge); box-shadow:0 0 10px var(--surge); }
+@keyframes sparkOut {
+  0%   { opacity:1; transform:translate(-50%,-50%) scale(1.3); }
+  100% { opacity:0; transform:translate(calc(-50% + var(--ex)),calc(-50% + var(--ey))) scale(.2); }
+}
+.shard-fx {
+  position:absolute; width:7px; height:9px; background:#9FB4D8; opacity:.9;
+  clip-path:polygon(50% 0,100% 70%,20% 100%);
+  animation:shardOut var(--d) cubic-bezier(.3,.4,.6,1) forwards;
+}
+@keyframes shardOut {
+  0%   { opacity:1; transform:translate(-50%,-50%) rotate(0); }
+  100% { opacity:0; transform:translate(calc(-50% + var(--ex)),calc(-50% + var(--ey))) rotate(var(--rot)); }
+}
+
+#toasts {
+  position:fixed; left:50%; transform:translateX(-50%); z-index:70;
+  top:max(72px,calc(env(safe-area-inset-top) + 66px));
+  display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none;
+  width:max-content; max-width:92vw;
+}
+.toast {
+  display:flex; align-items:center; gap:8px; padding:9px 15px; border-radius:99px;
+  font-size:12.5px; background:rgba(17,26,46,.96); border:1px solid var(--line2);
+  box-shadow:0 8px 30px rgba(0,0,0,.6); animation:toastIn .28s cubic-bezier(.2,1.4,.4,1);
+}
+.toast .ic { width:15px; height:15px; flex-shrink:0; }
+.toast.gold { border-color:var(--gold); color:var(--gold); }
+.toast.bad  { border-color:var(--danger); color:#FFC0CB; }
+.toast.good { border-color:var(--sweet); color:#B6FFDA; }
+.toast.out  { animation:toastOut .3s forwards; }
+@keyframes toastIn { from { opacity:0; transform:translateY(-14px) scale(.9); } }
+@keyframes toastOut { to { opacity:0; transform:translateY(-10px) scale(.95); } }
+
+.shake { animation:shake .28s; }
+.shake-hard { animation:shake .42s; }
+@keyframes shake {
+  10%,90% { transform:translate(-2px,1px); }
+  30%,70% { transform:translate(3px,-2px); }
+  50%     { transform:translate(-3px,2px); }
+}
+
+/* ---------------------------------------------------------------- modal */
+.modal {
+  position:fixed; inset:0; z-index:90; display:grid; place-items:center; padding:20px;
+  background:rgba(3,5,12,.8); backdrop-filter:blur(6px); animation:toastIn .2s;
+}
+.sheet {
+  width:min(430px,100%); padding:22px; border-radius:var(--r);
+  background:linear-gradient(160deg,var(--surface2),var(--surface));
+  border:1px solid var(--line2); box-shadow:0 24px 70px rgba(0,0,0,.7);
+}
+.sheet h2 { display:flex; align-items:center; gap:9px; font-size:18px; margin-bottom:11px; }
+.sheet h2 .ic { width:22px; height:22px; color:var(--gold); }
+.sheet p { font-size:13px; color:var(--dim); line-height:1.6; margin-bottom:9px; }
+.sheet .warn { color:var(--dim2); font-size:12px; }
+.sheet-btns { display:flex; gap:9px; margin-top:16px; }
+.sheet-btns .big { flex:1; }
+
+/* --------------------------------------------------------------- scroll */
+::-webkit-scrollbar { width:9px; height:9px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--line); border-radius:99px; border:2px solid transparent; background-clip:content-box; }
+::-webkit-scrollbar-thumb:hover { background:var(--line2); background-clip:content-box; }
+
+/* ------------------------------------------------------------ responsive */
+@media (max-width:900px) {
+  #app {
+    grid-template-columns:1fr;
+    grid-template-rows:auto minmax(0,1fr) minmax(0,46dvh);
+    grid-template-areas:'hud' 'stage' 'panel';
+  }
+  #panel { border-left:none; border-top:1px solid var(--line); }
+  #hud { gap:12px; flex-wrap:wrap; padding-bottom:8px; }
+  .brand h1 { display:none; }
+  .readouts { gap:6px; }
+  .ro { min-width:0; flex:1; padding:4px 9px; }
+  .ro-val { font-size:15px; }
+  .ro-sub { display:none; }
+  .buffs { width:100%; }
+  #scene { grid-template-columns:repeat(auto-fit,minmax(96px,124px)); gap:2px; padding:0 8px 10px; }
+  .tip { font-size:10.5px; padding:6px 12px; }
+  .tip .keys { display:none; }
+  .tab span { font-size:9px; }
+  .ro { min-width:0; }
+  /* En estrecho no caben "Producción"/"Multiplicador": se muestra su forma
+     corta (data-short) en vez de recortarlas con puntos suspensivos. */
+  .ro-lbl { font-size:0; letter-spacing:.05em; }
+  .ro-lbl::after { content:attr(data-short); font-size:8.5px; }
+  /* En vertical los avisos tapaban el HUD y la bombilla: van abajo, tipo
+     snackbar, más pequeños y como mucho dos a la vez. */
+  #toasts { top:auto; bottom:max(10px,env(safe-area-inset-bottom)); gap:4px; }
+  .toast { font-size:11px; padding:6px 12px; }
+  .toast:nth-child(n+3) { display:none; }
+}
+@media (max-width:420px) {
+  #scene { grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); }
+  .plate { font-size:9px; }
+  .forzar { padding:2px 7px; font-size:9px; }
+}
+
+/* Quien pida menos movimiento, que no sufra un clicker parpadeando. */
+@media (prefers-reduced-motion:reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}

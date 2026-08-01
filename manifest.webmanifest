@@ -1,0 +1,20 @@
+{
+  "name": "FULGOR",
+  "short_name": "FULGOR",
+  "description": "Juego idle: mantén las bombillas encendidas, sobrecárgalas al límite y no dejes que revienten.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070E",
+  "theme_color": "#05070E",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

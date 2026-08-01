@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Icono de la app: la bombilla encendida sobre el fondo del juego. -->
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="42%" r="52%">
+      <stop offset="0%" stop-color="#FFF3C4" stop-opacity=".95"/>
+      <stop offset="45%" stop-color="#FFC94A" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FF7A2B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF6D8"/>
+      <stop offset="100%" stop-color="#FFB347"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo -->
+  <rect width="512" height="512" fill="#05070E"/>
+  <circle cx="256" cy="228" r="200" fill="url(#halo)"/>
+
+  <!-- Cristal -->
+  <path d="M212,150 v-14 c0,-30 88,-30 88,0 v14 c0,26 -22,40 -22,72 h-44 c0,-32 -22,-46 -22,-72 z"
+        fill="url(#glass)" stroke="#FF8A2B" stroke-width="10" stroke-linejoin="round"/>
+  <!-- Filamento -->
+  <path d="M232,186 l8,26 l8,-32 l8,32 l8,-26"
+        fill="none" stroke="#7A3D00" stroke-width="9"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Casquillo -->
+  <path d="M228,244 h56 v18 h-56 z M234,272 h44 v18 h-44 z"
+        fill="#8B99B5"/>
+  <path d="M242,302 h28" stroke="#8B99B5" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Anillo de carga, guiño a la mecánica del juego -->
+  <circle cx="256" cy="228" r="176" fill="none" stroke="#FF4D9D" stroke-width="16"
+          stroke-linecap="round" stroke-dasharray="290 1106" transform="rotate(-90 256 228)"/>
+  <circle cx="256" cy="228" r="176" fill="none" stroke="#FFC94A" stroke-width="16"
+          stroke-linecap="round" stroke-dasharray="690 1106" transform="rotate(60 256 228)"/>
+</svg>

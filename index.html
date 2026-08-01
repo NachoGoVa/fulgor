@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#05070E" />
+  <meta name="description" content="FULGOR — juego idle/incremental: mantén las bombillas encendidas, sobrecárgalas al límite y no dejes que revienten." />
+  <title>FULGOR — mantén la luz encendida</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" /><!-- iOS antiguo -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='14' r='11' fill='%23FFC94A'/%3E%3Cpath d='M10 10c0-5 12-5 12 0 0 4-4 5-4 9h-4c0-4-4-5-4-9z' fill='none' stroke='%23241400' stroke-width='2'/%3E%3Cpath d='M13 25h6M14 29h4' stroke='%23FFC94A' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <header id="hud"></header>
+
+    <main id="stage">
+      <div class="rail" aria-hidden="true"></div>
+      <div id="scene"></div>
+      <p class="tip">
+        Pulsa para reencender. Si pulsas con el anillo aún <b class="c-surge">en rojo</b>
+        entras en <b>sobrecarga</b>: ganas mucho más, pero la quemas.
+        <span class="keys">Teclas <kbd>1</kbd>–<kbd>9</kbd>.</span>
+      </p>
+    </main>
+
+    <aside id="panel"></aside>
+  </div>
+
+  <div id="fx" aria-hidden="true"></div>
+  <div id="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
