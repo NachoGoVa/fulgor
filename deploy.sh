@@ -12,9 +12,16 @@ BUCKET=fulgor-prod-web
 DIST=E1XQE2XM9YRDY8
 cd "$(dirname "$0")"
 
-# Lo que NO se publica: servidor de desarrollo, tests y metadatos de npm/git.
+# Lo que NO se publica: servidor de desarrollo, tests, docs internas y metadatos.
+#
+# ⚠️ '.git/*' NO basta: al desplegar desde un worktree, `.git` es un FICHERO, no una
+#    carpeta, y ese patrón no lo captura. El 9-ago-2026 acabó publicado en
+#    https://fulgor.ngv.digital/.git filtrando la ruta local del disco. Por eso van
+#    los dos patrones. Lo mismo con 'docs/': eran notas de diseño internas servidas
+#    en abierto.
 EXCLUDES=(
-  --exclude '.git/*' --exclude 'test/*' --exclude 'node_modules/*'
+  --exclude '.git' --exclude '.git/*' --exclude 'test/*' --exclude 'node_modules/*'
+  --exclude 'docs/*'
   --exclude 'serve.mjs' --exclude 'deploy.sh' --exclude 'package.json'
   --exclude 'CLAUDE.md' --exclude '.gitignore'
   --exclude 'README.md' --exclude 'LICENSE' --exclude '.claude/*'
