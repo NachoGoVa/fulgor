@@ -2,3 +2,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# Entornos y secretos
+.env
+.env.*
+!.env.example
+
+# Sesiones de Claude: los worktrees son temporales y los permisos son por máquina.
+# El resto de .claude/ (agentes, skills, reglas) sí se versiona.
+.claude/worktrees/
+.claude/settings.local.json
