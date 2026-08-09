@@ -9,7 +9,7 @@
  *
  * ⚠️ Al desplegar cambios hay que subir VERSION: es lo que borra la caché anterior.
  */
-const VERSION = 'fulgor-v2';
+const VERSION = 'fulgor-v3';
 
 const ASSETS = [
   './', './index.html', './src/styles.css', './src/main.js',

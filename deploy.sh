@@ -17,6 +17,7 @@ EXCLUDES=(
   --exclude '.git/*' --exclude 'test/*' --exclude 'node_modules/*'
   --exclude 'serve.mjs' --exclude 'deploy.sh' --exclude 'package.json'
   --exclude 'CLAUDE.md' --exclude '.gitignore'
+  --exclude 'README.md' --exclude 'LICENSE' --exclude '.claude/*'
 )
 
 echo "→ Subiendo assets (caché larga)…"
