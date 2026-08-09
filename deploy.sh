@@ -17,7 +17,22 @@ EXCLUDES=(
   --exclude '.git/*' --exclude 'test/*' --exclude 'node_modules/*'
   --exclude 'serve.mjs' --exclude 'deploy.sh' --exclude 'package.json'
   --exclude 'CLAUDE.md' --exclude '.gitignore'
+  --exclude 'README.md' --exclude 'LICENSE' --exclude '.claude/*'
 )
+
+# ⚠️ Despliega EL DIRECTORIO DE TRABAJO tal cual, y con --delete. Si ejecutas
+# esto desde una rama vieja te cargas la versión buena en producción: pasó el
+# 9-ago-2026, se publicó v1 encima de v2 «El operario». Antes de desplegar:
+#   git fetch origin && git status -sb   # ¿estás al día con origin/main?
+git fetch -q origin 2>/dev/null || true
+if git rev-parse --verify -q origin/main >/dev/null; then
+  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+  if [ "${BEHIND:-0}" -gt 0 ]; then
+    echo "✖ ABORTADO: estás $BEHIND commit(s) por detrás de origin/main." >&2
+    echo "  Desplegar ahora publicaría una versión antigua. Haz 'git pull' primero." >&2
+    exit 1
+  fi
+fi
 
 echo "→ Subiendo assets (caché larga)…"
 # Todo menos los tres ficheros que deben revalidarse siempre.
