@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://fulgor.ngv.digital/sitemap.xml
