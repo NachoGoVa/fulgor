@@ -13,7 +13,15 @@
   <meta property="og:description" content="Juego idle/incremental gratis y sin instalación: mantén las bombillas encendidas, sobrecárgalas al límite y no dejes que revienten. Se juega en el navegador." />
   <meta property="og:url" content="https://fulgor.ngv.digital/" />
   <meta property="og:locale" content="es_ES" />
-  <meta name="twitter:card" content="summary" />
+  <!-- URL absoluta: los scrapers no resuelven rutas relativas. Y
+       summary_large_image, no summary: con `summary` esta imagen de 1200x630
+       saldría como una miniatura cuadrada diminuta. -->
+  <meta property="og:image" content="https://fulgor.ngv.digital/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="FULGOR — juego idle: mantén la luz encendida" />
+  <meta name="twitter:image" content="https://fulgor.ngv.digital/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="FULGOR — mantén la luz encendida" />
   <meta name="twitter:description" content="Juego idle/incremental gratis: mantén las bombillas encendidas y sobrecárgalas al límite sin que revienten." />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"FULGOR","url":"https://fulgor.ngv.digital/","description":"Juego idle/incremental: mantén las bombillas encendidas, sobrecárgalas al límite y no dejes que revienten.","genre":"Idle","applicationCategory":"Game","gamePlatform":"Web browser","inLanguage":"es","operatingSystem":"Cualquiera con navegador web","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"}}</script>
