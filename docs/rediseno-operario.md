@@ -1,5 +1,7 @@
 # FULGOR v2 — «El operario» · diseño
 
+> **Estado:** vigente · **Verificado:** sin verificar · última edición 2026-08-01
+
 > Estado: **implementado** (Fase 1 + carrera + vidas + XP; ver §12 con las decisiones finales).
 > Origen: idea del owner (1-ago-2026) — replantear el juego como un trabajador de una
 > fábrica de luz, con días laborales, nómina por objetivos, roturas que se descuentan
