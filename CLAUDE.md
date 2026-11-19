@@ -75,7 +75,7 @@ src/engine/    ← simulación pura, sin DOM. Es lo que prueban los tests.
   config.js      TODO el balance: niveles, rangos, mejoras, habilidades, XP, logros
   engine.js      step() · click() · startDay()/endDay() · resetLife() · compras
   format.js      formateo de números grandes (K/M/B/T…)
-  save.js        localStorage, un solo blob con debounce de 3 s (clave v4)
+  save.js        localStorage, un solo blob con debounce de 3 s (clave `fulgor.save.v5`)
 src/ui/        ← todo lo que toca el DOM
   art.js         SVG a mano: 10 bombillas, rotura, zócalo vacío, iconos, logo
   characters.js  LOS RETRATOS: 6 caras SVG (jefe, RR.HH., veterano, becaria,
@@ -142,7 +142,7 @@ apaisado (`max-height:520px`).
 `sw.js`: stale-while-revalidate — abre al instante, funciona sin conexión, nunca se queda en una
 versión vieja. `manifest.webmanifest` + `icon.svg` lo hacen instalable en el móvil.
 
-> ⚠️ **Al desplegar cambios hay que subir `VERSION` en `sw.js`** (ahora `fulgor-v4`). Por eso
+> ⚠️ **Al desplegar cambios hay que subir `VERSION` en `sw.js`** (mira el valor actual en su línea 12). Por eso
 > `index.html`, `sw.js` y el manifest se suben con `max-age=0, must-revalidate` y el resto con caché
 > de un día: si esos tres se cachean, nadie ve nunca una versión nueva.
 
@@ -170,7 +170,7 @@ de redirección; hacerlo en lote con la próxima app).
   del juego anterior (pasó: el smoke de v2 «veía» el juego v1 servido por el SW viejo).
 - Para **sembrar una partida** desde fuera: hacerlo en una página en blanco del mismo origen (el
   `flush()` de `pagehide` machaca lo que escribas con el juego cargado).
-- La clave de guardado lleva versión (`fulgor.save.v3`). Si cambia la forma del estado, **súbela**.
+- La clave de guardado lleva versión (`fulgor.save.v5`, en `src/engine/save.js`). Si cambia la forma del estado, **súbela**.
 - `startDay()` usa `Math.random()` para los objetivos: los tests deterministas los sobreescriben a mano.
 
 ## Pendiente (fases 2-3 del diseño)
